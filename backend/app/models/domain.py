@@ -1,0 +1,175 @@
+"""
+Domain models for the Finance Alphatense AI FP&A engine.
+
+Architecture note (multi-tenant by design):
+    Advisor -> Client -> FinancialStatement (per period, per scenario)
+
+An Advisor manages many Clients from a single workspace. Every downstream
+calculation (KPIs, variance analysis) operates on a single Client's data at
+a time, so adding clients never requires touching the engine itself -- the
+Workspace orchestrator (see engine/workspace.py) is what fans out across
+clients. This mirrors the "multi-tenant native" positioning in the product
+plan: the advisor never has to leave a single panel to manage dozens of
+clients.
+"""
+
+from __future__ import annotations
+
+from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field, field_validator
+
+
+class Scenario(str, Enum):
+    """Which version of the numbers a line item represents."""
+
+    ACTUAL = "actual"
+    BUDGET = "budget"
+    PRIOR = "prior"  # same period, prior year -- used for YoY comparisons
+
+
+class AccountCategory(str, Enum):
+    """Coarse P&L categories used for KPI roll-ups and variance drivers."""
+
+    REVENUE = "revenue"
+    COGS = "cogs"
+    OPEX = "opex"
+    OTHER_INCOME = "other_income"
+    OTHER_EXPENSE = "other_expense"
+    TAX = "tax"
+
+
+class Advisor(BaseModel):
+    """A financial advisory firm using the platform (the paying customer)."""
+
+    advisor_id: str
+    name: str
+
+
+class Client(BaseModel):
+    """One of the advisor's end clients -- gets its own isolated workspace."""
+
+    client_id: str
+    advisor_id: str
+    name: str
+    currency: str = "GBP"
+
+
+class LineItem(BaseModel):
+    """A single account balance for a client, period, and scenario."""
+
+    client_id: str
+    period: str  # e.g. "2026-06" (monthly) or "2026-Q2"
+    scenario: Scenario
+    account: str  # e.g. "Marketing", "SaaS Subscriptions"
+    category: AccountCategory
+    amount: float
+
+    @field_validator("period")
+    @classmethod
+    def _non_empty_period(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("period must not be empty")
+        return v.strip()
+
+
+class FinancialStatement(BaseModel):
+    """All line items for one client, one period, one scenario."""
+
+    client_id: str
+    period: str
+    scenario: Scenario
+    line_items: list[LineItem] = Field(default_factory=list)
+
+    def total(self, category: AccountCategory) -> float:
+        return sum(li.amount for li in self.line_items if li.category == category)
+
+    def top_accounts(self, category: AccountCategory, n: int = 3) -> list[LineItem]:
+        items = [li for li in self.line_items if li.category == category]
+        return sorted(items, key=lambda li: abs(li.amount), reverse=True)[:n]
+
+
+class KPISet(BaseModel):
+    """Calculated KPIs for one client, one period, one scenario."""
+
+    client_id: str
+    period: str
+    scenario: Scenario
+
+    revenue: float
+    cogs: float
+    gross_profit: float
+    gross_margin_pct: Optional[float]  # None if revenue is 0
+
+    opex: float
+    ebitda: float
+    ebitda_margin_pct: Optional[float]
+
+    other_income: float
+    other_expense: float
+    tax: float
+    net_income: float
+    net_margin_pct: Optional[float]
+
+
+class Severity(str, Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class VarianceResult(BaseModel):
+    """One KPI's deviation between an actual figure and a comparison basis."""
+
+    client_id: str
+    period: str
+    kpi_name: str
+    comparison_scenario: Scenario  # BUDGET or PRIOR
+
+    actual_value: float
+    comparison_value: float
+    delta: float
+    delta_pct: Optional[float]  # None if comparison_value is 0
+    severity: Severity
+    narrative: str
+
+
+class ForecastScenario(str, Enum):
+    """Which of the three projections a ForecastResult represents."""
+
+    BEST = "best"
+    BASE = "base"
+    WORST = "worst"
+
+
+class ForecastResult(BaseModel):
+    """A projected KPI set for one future period, under one scenario.
+
+    Mirrors KPISet's shape so the same reporting/formatting code can render
+    forecasts and actuals side by side, plus an `assumptions` narrative
+    explaining the growth rates driving the projection -- an advisor
+    presenting this to a client needs to be able to say *why* the number is
+    what it is, not just see the number.
+    """
+
+    client_id: str
+    period: str
+    scenario: ForecastScenario
+
+    revenue: float
+    cogs: float
+    gross_profit: float
+    gross_margin_pct: Optional[float]
+
+    opex: float
+    ebitda: float
+    ebitda_margin_pct: Optional[float]
+
+    other_income: float
+    other_expense: float
+    tax: float
+    net_income: float
+    net_margin_pct: Optional[float]
+
+    assumptions: str
