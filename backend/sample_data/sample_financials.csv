@@ -1,0 +1,153 @@
+client_id,client_name,period,scenario,account,category,amount
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Consulting Fees,revenue,155000
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Retainer Fees,revenue,33000
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Subcontractors,cogs,47000
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Marketing,opex,18000
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Salaries,opex,70000
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Software,opex,8000
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Office,opex,5500
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Interest Income,other_income,350
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Bank Fees,other_expense,250
+acme-ltd,Acme Consulting Ltd,2026-01,actual,Corporation Tax,tax,7500
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Consulting Fees,revenue,160000
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Retainer Fees,revenue,34500
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Subcontractors,cogs,48500
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Marketing,opex,19000
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Salaries,opex,71000
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Software,opex,8200
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Office,opex,5600
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Interest Income,other_income,380
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Bank Fees,other_expense,260
+acme-ltd,Acme Consulting Ltd,2026-02,actual,Corporation Tax,tax,7700
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Consulting Fees,revenue,165000
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Retainer Fees,revenue,36000
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Subcontractors,cogs,50000
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Marketing,opex,20000
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Salaries,opex,72000
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Software,opex,8400
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Office,opex,5700
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Interest Income,other_income,400
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Bank Fees,other_expense,270
+acme-ltd,Acme Consulting Ltd,2026-03,actual,Corporation Tax,tax,7900
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Consulting Fees,revenue,172000
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Retainer Fees,revenue,38000
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Subcontractors,cogs,53000
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Marketing,opex,21500
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Salaries,opex,73500
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Software,opex,8600
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Office,opex,5800
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Interest Income,other_income,430
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Bank Fees,other_expense,280
+acme-ltd,Acme Consulting Ltd,2026-04,actual,Corporation Tax,tax,8200
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Consulting Fees,revenue,178000
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Retainer Fees,revenue,40000
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Subcontractors,cogs,56000
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Marketing,opex,23000
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Salaries,opex,75000
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Software,opex,8800
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Office,opex,5900
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Interest Income,other_income,460
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Bank Fees,other_expense,290
+acme-ltd,Acme Consulting Ltd,2026-05,actual,Corporation Tax,tax,8600
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Consulting Fees,revenue,185000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Retainer Fees,revenue,42000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Subcontractors,cogs,58000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Marketing,opex,24000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Salaries,opex,76000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Software,opex,9000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Office,opex,6000
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Interest Income,other_income,500
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Bank Fees,other_expense,300
+acme-ltd,Acme Consulting Ltd,2026-06,actual,Corporation Tax,tax,9000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Consulting Fees,revenue,170000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Retainer Fees,revenue,40000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Subcontractors,cogs,50000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Marketing,opex,18000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Salaries,opex,76000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Software,opex,8000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Office,opex,6000
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Interest Income,other_income,300
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Bank Fees,other_expense,250
+acme-ltd,Acme Consulting Ltd,2026-06,budget,Corporation Tax,tax,8000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Consulting Fees,revenue,150000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Retainer Fees,revenue,35000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Subcontractors,cogs,45000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Marketing,opex,15000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Salaries,opex,68000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Software,opex,7000
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Office,opex,5500
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Interest Income,other_income,200
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Bank Fees,other_expense,200
+acme-ltd,Acme Consulting Ltd,2026-06,prior,Corporation Tax,tax,7000
+beacon-partners,Beacon Partners,2026-01,actual,Advisory Fees,revenue,82000
+beacon-partners,Beacon Partners,2026-01,actual,Project Fees,revenue,14000
+beacon-partners,Beacon Partners,2026-01,actual,Subcontractors,cogs,18000
+beacon-partners,Beacon Partners,2026-01,actual,Marketing,opex,4500
+beacon-partners,Beacon Partners,2026-01,actual,Salaries,opex,35000
+beacon-partners,Beacon Partners,2026-01,actual,Software,opex,3200
+beacon-partners,Beacon Partners,2026-01,actual,Office,opex,2400
+beacon-partners,Beacon Partners,2026-01,actual,Bank Fees,other_expense,100
+beacon-partners,Beacon Partners,2026-01,actual,Corporation Tax,tax,2600
+beacon-partners,Beacon Partners,2026-02,actual,Advisory Fees,revenue,86000
+beacon-partners,Beacon Partners,2026-02,actual,Project Fees,revenue,15000
+beacon-partners,Beacon Partners,2026-02,actual,Subcontractors,cogs,19000
+beacon-partners,Beacon Partners,2026-02,actual,Marketing,opex,5000
+beacon-partners,Beacon Partners,2026-02,actual,Salaries,opex,36500
+beacon-partners,Beacon Partners,2026-02,actual,Software,opex,3400
+beacon-partners,Beacon Partners,2026-02,actual,Office,opex,2500
+beacon-partners,Beacon Partners,2026-02,actual,Bank Fees,other_expense,110
+beacon-partners,Beacon Partners,2026-02,actual,Corporation Tax,tax,2750
+beacon-partners,Beacon Partners,2026-03,actual,Advisory Fees,revenue,90000
+beacon-partners,Beacon Partners,2026-03,actual,Project Fees,revenue,16000
+beacon-partners,Beacon Partners,2026-03,actual,Subcontractors,cogs,20000
+beacon-partners,Beacon Partners,2026-03,actual,Marketing,opex,5500
+beacon-partners,Beacon Partners,2026-03,actual,Salaries,opex,38000
+beacon-partners,Beacon Partners,2026-03,actual,Software,opex,3600
+beacon-partners,Beacon Partners,2026-03,actual,Office,opex,2600
+beacon-partners,Beacon Partners,2026-03,actual,Bank Fees,other_expense,120
+beacon-partners,Beacon Partners,2026-03,actual,Corporation Tax,tax,2900
+beacon-partners,Beacon Partners,2026-04,actual,Advisory Fees,revenue,98000
+beacon-partners,Beacon Partners,2026-04,actual,Project Fees,revenue,19000
+beacon-partners,Beacon Partners,2026-04,actual,Subcontractors,cogs,21500
+beacon-partners,Beacon Partners,2026-04,actual,Marketing,opex,6200
+beacon-partners,Beacon Partners,2026-04,actual,Salaries,opex,39500
+beacon-partners,Beacon Partners,2026-04,actual,Software,opex,3800
+beacon-partners,Beacon Partners,2026-04,actual,Office,opex,2800
+beacon-partners,Beacon Partners,2026-04,actual,Bank Fees,other_expense,135
+beacon-partners,Beacon Partners,2026-04,actual,Corporation Tax,tax,3300
+beacon-partners,Beacon Partners,2026-05,actual,Advisory Fees,revenue,100000
+beacon-partners,Beacon Partners,2026-05,actual,Project Fees,revenue,19500
+beacon-partners,Beacon Partners,2026-05,actual,Subcontractors,cogs,22000
+beacon-partners,Beacon Partners,2026-05,actual,Marketing,opex,6500
+beacon-partners,Beacon Partners,2026-05,actual,Salaries,opex,40500
+beacon-partners,Beacon Partners,2026-05,actual,Software,opex,3900
+beacon-partners,Beacon Partners,2026-05,actual,Office,opex,2900
+beacon-partners,Beacon Partners,2026-05,actual,Bank Fees,other_expense,145
+beacon-partners,Beacon Partners,2026-05,actual,Corporation Tax,tax,3500
+beacon-partners,Beacon Partners,2026-06,actual,Advisory Fees,revenue,95000
+beacon-partners,Beacon Partners,2026-06,actual,Project Fees,revenue,18000
+beacon-partners,Beacon Partners,2026-06,actual,Subcontractors,cogs,22000
+beacon-partners,Beacon Partners,2026-06,actual,Marketing,opex,6000
+beacon-partners,Beacon Partners,2026-06,actual,Salaries,opex,41000
+beacon-partners,Beacon Partners,2026-06,actual,Software,opex,4000
+beacon-partners,Beacon Partners,2026-06,actual,Office,opex,3000
+beacon-partners,Beacon Partners,2026-06,actual,Bank Fees,other_expense,150
+beacon-partners,Beacon Partners,2026-06,actual,Corporation Tax,tax,3200
+beacon-partners,Beacon Partners,2026-06,budget,Advisory Fees,revenue,110000
+beacon-partners,Beacon Partners,2026-06,budget,Project Fees,revenue,20000
+beacon-partners,Beacon Partners,2026-06,budget,Subcontractors,cogs,24000
+beacon-partners,Beacon Partners,2026-06,budget,Marketing,opex,7000
+beacon-partners,Beacon Partners,2026-06,budget,Salaries,opex,41000
+beacon-partners,Beacon Partners,2026-06,budget,Software,opex,4000
+beacon-partners,Beacon Partners,2026-06,budget,Office,opex,3000
+beacon-partners,Beacon Partners,2026-06,budget,Bank Fees,other_expense,150
+beacon-partners,Beacon Partners,2026-06,budget,Corporation Tax,tax,3800
+beacon-partners,Beacon Partners,2026-06,prior,Advisory Fees,revenue,88000
+beacon-partners,Beacon Partners,2026-06,prior,Project Fees,revenue,15000
+beacon-partners,Beacon Partners,2026-06,prior,Subcontractors,cogs,20000
+beacon-partners,Beacon Partners,2026-06,prior,Marketing,opex,5000
+beacon-partners,Beacon Partners,2026-06,prior,Salaries,opex,36000
+beacon-partners,Beacon Partners,2026-06,prior,Software,opex,3500
+beacon-partners,Beacon Partners,2026-06,prior,Office,opex,2800
+beacon-partners,Beacon Partners,2026-06,prior,Bank Fees,other_expense,120
+beacon-partners,Beacon Partners,2026-06,prior,Corporation Tax,tax,2900
