@@ -27,15 +27,27 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from app.engine.forecast import ForecastError
 from app.engine.workspace import Workspace
 from app.ingestion.parser import IngestionError
+from app.reporting.pdf_report import generate_client_pdf
 
 app = FastAPI(
     title="Alphatense AI -- FP&A Engine API",
     description="HTTP API over the ingestion, KPI, variance, and forecast engine.",
     version="0.1.0",
+)
+
+# Allows the Vite dev server (frontend/) to call this API directly during
+# local development. Tighten to the deployed frontend origin in production.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 _ALLOWED_SUFFIXES = {".csv", ".xlsx", ".xls"}
@@ -117,6 +129,31 @@ def client_report(workspace_id: str, client_id: str, period: str) -> dict:
             detail=f"No actual data on file for client '{client_id}' in period '{period}'",
         )
     return report.to_dict()
+
+
+@app.get("/workspaces/{workspace_id}/clients/{client_id}/report/pdf")
+def client_report_pdf(workspace_id: str, client_id: str, period: str, periods_ahead: int = 3) -> Response:
+    """One-click executive PDF: KPIs + variance + forecast (if there's enough history)."""
+    workspace = _get_workspace(workspace_id)
+    report = workspace.build_client_report(client_id, period)
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No actual data on file for client '{client_id}' in period '{period}'",
+        )
+
+    try:
+        forecast = workspace.build_forecast(client_id, periods_ahead=periods_ahead)
+    except ForecastError:
+        forecast = None
+
+    pdf_bytes = generate_client_pdf(report, forecast)
+    filename = f"{client_id}_{period}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/workspaces/{workspace_id}/clients/{client_id}/forecast")

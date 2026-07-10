@@ -100,6 +100,27 @@ def test_client_report_unknown_period_returns_404():
     assert response.status_code == 404
 
 
+def test_client_report_pdf_returns_pdf_bytes():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/report/pdf",
+        params={"period": "2026-06"},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "attachment" in response.headers["content-disposition"]
+    assert response.content.startswith(b"%PDF")
+
+
+def test_client_report_pdf_unknown_period_returns_404():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/acme-ltd/report/pdf",
+        params={"period": "2099-12"},
+    )
+    assert response.status_code == 404
+
+
 def test_client_forecast_returns_best_base_worst_per_period():
     workspace_id = _upload_sample()
     response = client.get(
