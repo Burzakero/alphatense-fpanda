@@ -48,8 +48,45 @@ validar que el producto en sí resuelve el problema.
   sección en vez de fallar si no lo hay).
 - 5 tests nuevos.
 
+### Agente de Aging AR/AP
+Primer "agente especializado" del backlog (backend only, sin frontend —
+ver decisión de pulido de UI más abajo). Modelo de datos nuevo en paralelo
+al de `FinancialStatement`/`LineItem`, sin tocarlos:
+
+- `Invoice` (`app/models/domain.py`): factura individual con `issue_date`/
+  `due_date` reales, `amount`/`amount_paid` → `balance`.
+- `app/ingestion/invoices.py`: ingesta separada de `parser.py` (esquema de
+  columnas totalmente distinto). `load_invoices()`.
+- `app/engine/aging.py`: `calculate_aging()` — bucketing estándar (current,
+  1-30, 31-60, 61-90, 90+) por días de vencimiento, con narrativa que
+  nombra a la contraparte con mayor saldo abierto (mismo patrón que
+  `_driver_phrase` en `engine/variance.py`).
+- `Workspace.add_invoices()` / `Workspace.build_aging_report()`: las
+  facturas se cargan a un workspace ya existente (no van en el mismo
+  archivo que el P&L).
+- Endpoints nuevos: `POST /workspaces/{id}/invoices` y `GET
+  /workspaces/{id}/clients/{client_id}/aging?type=ar&as_of=YYYY-MM-DD`
+  (`as_of` es obligatorio y explícito a propósito — un reporte financiero
+  no debe depender silenciosamente de la fecha del reloj del servidor).
+- `backend/sample_data/sample_invoices.csv`: facturas AR/AP de ejemplo
+  para ambos clientes, cubriendo los 5 buckets y un caso de pago parcial.
+- Probado end-to-end contra el servidor real corriendo (no solo tests):
+  totales y buckets verificados a mano contra el CSV de ejemplo.
+
+Cash flow (el otro agente especializado del backlog) sigue pendiente —
+requiere modelar timing proyectado de cobros/pagos, más complejo que el
+modelo de facturas con fecha de vencimiento que ya cubre aging.
+
 ### Estado final de la suite de tests
-**44/44 tests pasando** (`cd backend && pytest -v`).
+**66/66 tests pasando** (`cd backend && pytest -v`).
+
+### Git
+Todo el trabajo de esta sesión (frontend, PDF ejecutivo, aging AR/AP)
+quedó commiteado en `main` en commits separados por feature. Pendiente:
+el usuario hace el primer `git push` manualmente (requiere login
+interactivo por navegador con GitHub que no se puede completar desde este
+entorno) — después de eso el push queda desbloqueado para el resto de la
+sesión.
 
 ## Qué falta (backlog, en el orden que fuimos priorizando)
 
@@ -60,13 +97,12 @@ validar que el producto en sí resuelve el problema.
    Alternativa evaluada y no descartada: construirlo primero contra un
    adaptador simulado para no bloquear el avance de código.
 3. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth.
-4. **Agentes especializados** (cash flow, aging AR/AP) — requieren modelar
-   datos que el esquema actual (líneas agregadas por cuenta/periodo/
-   escenario) no soporta todavía (facturas individuales con fechas de
-   vencimiento, timing de cobros/pagos). Más trabajo de diseño de datos
-   antes de poder codear.
-5. **Pulido del frontend** (diseño, responsive, loading states, etc.) —
-   deliberadamente pospuesto hasta el final del proyecto.
+4. **Agente de cash flow** — requiere modelar timing proyectado de
+   cobros/pagos (no solo montos con fecha de vencimiento, que es lo que ya
+   cubre aging). Más trabajo de diseño de datos antes de poder codear.
+5. **Pulido del frontend** (diseño, responsive, loading states, etc.,
+   incluyendo exponer aging en la UI) — deliberadamente pospuesto hasta el
+   final del proyecto.
 
 ## Cómo correr todo hoy
 
