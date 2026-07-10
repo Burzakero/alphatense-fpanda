@@ -23,11 +23,12 @@ gestiona decenas de clientes desde un panel único).
 - [x] Forecast AI con escenarios (best/base/worst) a partir del historial
       de actuals de cada cliente, con narrativa de las tasas de crecimiento
       asumidas
+- [x] API HTTP (FastAPI) que expone todo el motor (ingesta, KPIs, variance,
+      forecast) por HTTP, lista para que la consuma un frontend
 - [ ] Conector QuickBooks (requiere credenciales OAuth reales -- pendiente
       de decidir si se construye como adaptador simulado mientras tanto)
 - [ ] Agentes especializados adicionales (cash flow, aging AR/AP)
 - [ ] Conector Xero (Fase 1, aún no construido)
-- [ ] API HTTP (FastAPI) para servir esto a un frontend
 - [ ] Generación del informe ejecutivo en PDF con un clic
 - [ ] Frontend
 
@@ -42,9 +43,9 @@ backend/
     engine/variance.py    # KPISet actual vs budget/prior -> VarianceResult (+ narrativa)
     engine/forecast.py    # historial de actuals -> ForecastResult (best/base/worst)
     engine/workspace.py   # Orquestador multi-cliente: un archivo -> reportes + forecasts de todo el portfolio
-    api/                 # (vacío por ahora -- Fase 2)
+    api/main.py           # FastAPI: expone el motor completo por HTTP
   sample_data/sample_financials.csv  # 2 clientes de ejemplo, 3 escenarios cada uno
-  tests/                # pytest, cobertura de ingesta, KPIs, variance y workspace
+  tests/                # pytest, cobertura de ingesta, KPIs, variance, workspace y API
   run_demo.py           # demo end-to-end por consola
 ```
 
@@ -54,11 +55,14 @@ backend/
 cd backend
 pip install -r requirements.txt
 
-# correr los tests
+# correr los tests (incluye los de la API)
 pytest -v
 
 # ver el motor en acción con los datos de ejemplo
 python run_demo.py
+
+# levantar la API HTTP en http://127.0.0.1:8000
+uvicorn app.api.main:app --reload
 ```
 
 ## Esquema de datos esperado (Excel/CSV)
@@ -109,6 +113,42 @@ python run_demo.py   # ahora también imprime el forecast a 3 periodos por clien
 de un cliente o de todo el portfolio, respectivamente. Requiere al menos 2
 periodos de actuals cargados para ese cliente.
 
+## API HTTP (Fase 2)
+
+`app/api/main.py` expone el motor completo (ingesta, KPIs, variance,
+forecast) por HTTP con FastAPI, para que un frontend (o cualquier cliente
+HTTP) pueda usarlo sin importar el paquete Python directamente.
+
+No hay base de datos todavía: cada archivo subido se procesa en memoria y
+queda guardado bajo un `workspace_id` (UUID) generado en el momento, válido
+mientras el proceso siga corriendo. Es la primera pieza de infraestructura
+de la Fase 2 -- una capa de persistencia real puede reemplazar el
+diccionario en memoria más adelante sin cambiar ninguna ruta.
+
+| método | ruta | qué hace |
+|--------|------|----------|
+| GET  | `/health` | chequeo de salud |
+| POST | `/workspaces` | sube un CSV/Excel (`multipart/form-data`, campo `file`) y crea un workspace |
+| GET  | `/workspaces/{workspace_id}/clients` | lista los `client_id` encontrados en el archivo |
+| GET  | `/workspaces/{workspace_id}/portfolio` | KPIs + variance analysis de todos los clientes/periodos |
+| GET  | `/workspaces/{workspace_id}/clients/{client_id}/report?period=2026-06` | reporte de un cliente/periodo puntual |
+| GET  | `/workspaces/{workspace_id}/clients/{client_id}/forecast?periods_ahead=3` | forecast best/base/worst de un cliente |
+| GET  | `/workspaces/{workspace_id}/portfolio/forecast?periods_ahead=3` | forecast de todos los clientes con suficiente historial |
+
+Ejemplo rápido con `curl`:
+
+```bash
+uvicorn app.api.main:app --reload &
+
+WS=$(curl -s -X POST http://127.0.0.1:8000/workspaces \
+  -F "file=@sample_data/sample_financials.csv" | python -c "import sys,json;print(json.load(sys.stdin)['workspace_id'])")
+
+curl -s "http://127.0.0.1:8000/workspaces/$WS/portfolio" | python -m json.tool
+```
+
+Con el servidor corriendo, la documentación interactiva (Swagger) queda
+disponible en `http://127.0.0.1:8000/docs`.
+
 ## Próximos pasos (según el plan de producto)
 
 1. Validar tarifas y dolor real con 5-10 asesorías UK antes de seguir
@@ -116,4 +156,4 @@ periodos de actuals cargados para ese cliente.
 2. Conector Xero + agente FP&A conversacional (Fase 1, pendiente)
 3. Conector QuickBooks + más agentes especializados (resto de Fase 2)
 4. Generación del PDF ejecutivo con un clic
-5. API + frontend
+5. Frontend (ya puede empezar a consumir la API)
