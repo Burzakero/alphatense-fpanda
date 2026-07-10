@@ -1,0 +1,130 @@
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from app.api.main import app
+
+client = TestClient(app)
+
+SAMPLE_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_financials.csv"
+
+
+def _upload_sample() -> str:
+    with open(SAMPLE_CSV, "rb") as f:
+        response = client.post(
+            "/workspaces",
+            files={"file": ("sample_financials.csv", f, "text/csv")},
+        )
+    assert response.status_code == 201
+    return response.json()["workspace_id"]
+
+
+def test_health_check():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_upload_creates_workspace_with_expected_clients():
+    with open(SAMPLE_CSV, "rb") as f:
+        response = client.post(
+            "/workspaces",
+            files={"file": ("sample_financials.csv", f, "text/csv")},
+        )
+    assert response.status_code == 201
+    body = response.json()
+    assert "workspace_id" in body and body["workspace_id"]
+    assert body["client_ids"] == ["acme-ltd", "beacon-partners"]
+
+
+def test_upload_rejects_unsupported_file_type():
+    response = client.post(
+        "/workspaces",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+    assert response.status_code == 400
+    assert "Unsupported file type" in response.json()["detail"]
+
+
+def test_upload_rejects_malformed_csv():
+    bad_csv = b"client_id,period,scenario,account,amount\nc1,2026-01,actual,Sales,100\n"
+    response = client.post(
+        "/workspaces",
+        files={"file": ("bad.csv", bad_csv, "text/csv")},
+    )
+    assert response.status_code == 400
+    assert "category" in response.json()["detail"]
+
+
+def test_list_clients():
+    workspace_id = _upload_sample()
+    response = client.get(f"/workspaces/{workspace_id}/clients")
+    assert response.status_code == 200
+    assert response.json() == {"client_ids": ["acme-ltd", "beacon-partners"]}
+
+
+def test_unknown_workspace_returns_404():
+    response = client.get("/workspaces/does-not-exist/clients")
+    assert response.status_code == 404
+
+
+def test_portfolio_report_covers_every_client_period():
+    workspace_id = _upload_sample()
+    response = client.get(f"/workspaces/{workspace_id}/portfolio")
+    assert response.status_code == 200
+    reports = response.json()
+    # 2 clients x 6 historical actual periods (2026-01..2026-06) = 12 reports.
+    assert len(reports) == 12
+    assert all("actual_kpis" in r for r in reports)
+
+
+def test_client_report_for_beacon_june_has_variances():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/report",
+        params={"period": "2026-06"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["client_id"] == "beacon-partners"
+    assert len(body["variances_vs_budget"]) > 0
+    assert len(body["variances_vs_prior"]) > 0
+
+
+def test_client_report_unknown_period_returns_404():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/acme-ltd/report",
+        params={"period": "2099-12"},
+    )
+    assert response.status_code == 404
+
+
+def test_client_forecast_returns_best_base_worst_per_period():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/acme-ltd/forecast",
+        params={"periods_ahead": 2},
+    )
+    assert response.status_code == 200
+    results = response.json()
+    # 3 scenarios (best/base/worst) x 2 periods ahead = 6 results.
+    assert len(results) == 6
+    scenarios = {r["scenario"] for r in results}
+    assert scenarios == {"best", "base", "worst"}
+
+
+def test_client_forecast_unknown_client_returns_404():
+    workspace_id = _upload_sample()
+    response = client.get(f"/workspaces/{workspace_id}/clients/nonexistent/forecast")
+    assert response.status_code == 404
+
+
+def test_portfolio_forecast_covers_both_clients():
+    workspace_id = _upload_sample()
+    response = client.get(f"/workspaces/{workspace_id}/portfolio/forecast", params={"periods_ahead": 1})
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"acme-ltd", "beacon-partners"}
+    for results in body.values():
+        assert len(results) == 3  # best/base/worst for 1 period ahead
