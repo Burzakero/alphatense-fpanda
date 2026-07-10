@@ -1,0 +1,70 @@
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import type { ForecastResult } from '../types'
+import { formatCurrency } from '../utils/format'
+
+const SCENARIO_COLORS = {
+  best: '#16a34a',
+  base: '#2563eb',
+  worst: '#dc2626',
+}
+
+interface ChartRow {
+  period: string
+  best?: number
+  base?: number
+  worst?: number
+}
+
+export function ForecastChart({ forecasts }: { forecasts: ForecastResult[] }) {
+  if (forecasts.length === 0) {
+    return <p className="text-sm text-slate-400">No hay suficiente historial para proyectar este cliente.</p>
+  }
+
+  const byPeriod = new Map<string, ChartRow>()
+  for (const f of forecasts) {
+    const row = byPeriod.get(f.period) ?? { period: f.period }
+    row[f.scenario] = f.net_income
+    byPeriod.set(f.period, row)
+  }
+  const data = Array.from(byPeriod.values()).sort((a, b) => a.period.localeCompare(b.period))
+
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+        Forecast de resultado neto (best / base / worst)
+      </h3>
+      <div className="h-72 w-full rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
+            <XAxis dataKey="period" tick={{ fontSize: 12 }} />
+            <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 11 }} width={90} />
+            <Tooltip formatter={(v) => formatCurrency(Number(v))} />
+            <Legend />
+            <Line type="monotone" dataKey="best" name="Best" stroke={SCENARIO_COLORS.best} strokeWidth={2} />
+            <Line type="monotone" dataKey="base" name="Base" stroke={SCENARIO_COLORS.base} strokeWidth={2} />
+            <Line type="monotone" dataKey="worst" name="Worst" stroke={SCENARIO_COLORS.worst} strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <ul className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+        {forecasts
+          .filter((f) => f.scenario === 'base')
+          .map((f) => (
+            <li key={f.period}>
+              <span className="font-medium">{f.period}:</span> {f.assumptions}
+            </li>
+          ))}
+      </ul>
+    </div>
+  )
+}
