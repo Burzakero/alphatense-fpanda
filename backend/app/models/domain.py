@@ -15,6 +15,7 @@ clients.
 
 from __future__ import annotations
 
+from datetime import date
 from enum import Enum
 from typing import Optional
 
@@ -173,3 +174,61 @@ class ForecastResult(BaseModel):
     net_margin_pct: Optional[float]
 
     assumptions: str
+
+
+class InvoiceType(str, Enum):
+    """Which side of the ledger an invoice sits on."""
+
+    AR = "ar"  # accounts receivable -- money owed to the client by their customers
+    AP = "ap"  # accounts payable -- money the client owes to their vendors
+
+
+class Invoice(BaseModel):
+    """A single AR or AP invoice, open or (partially) paid.
+
+    Distinct from LineItem/FinancialStatement on purpose: aging needs a
+    real due_date per invoice to bucket by days overdue, which an
+    aggregated per-period P&L line item doesn't carry.
+    """
+
+    client_id: str
+    invoice_id: str
+    type: InvoiceType
+    counterparty: str  # customer name (AR) or vendor name (AP)
+    issue_date: date
+    due_date: date
+    amount: float
+    amount_paid: float = 0.0
+
+    @property
+    def balance(self) -> float:
+        return round(self.amount - self.amount_paid, 2)
+
+
+class AgingBucket(str, Enum):
+    """Standard AR/AP aging buckets, by days past due."""
+
+    CURRENT = "current"
+    DAYS_1_30 = "1-30"
+    DAYS_31_60 = "31-60"
+    DAYS_61_90 = "61-90"
+    DAYS_90_PLUS = "90+"
+
+
+class AgingBucketAmount(BaseModel):
+    """Total open balance (and invoice count) falling into one aging bucket."""
+
+    bucket: AgingBucket
+    amount: float
+    invoice_count: int
+
+
+class AgingReport(BaseModel):
+    """AR or AP aging for one client as of a given date."""
+
+    client_id: str
+    type: InvoiceType
+    as_of: date
+    total_outstanding: float
+    buckets: list[AgingBucketAmount]
+    narrative: str

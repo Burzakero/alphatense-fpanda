@@ -1,0 +1,15 @@
+client_id,invoice_id,type,counterparty,issue_date,due_date,amount,amount_paid
+beacon-partners,INV-1001,ar,Northwind Traders,2026-06-20,2026-07-20,5000,0
+beacon-partners,INV-1002,ar,Contoso Ltd,2026-06-01,2026-06-15,3000,0
+beacon-partners,INV-1003,ar,Fabrikam Inc,2026-05-01,2026-05-15,4200,0
+beacon-partners,INV-1004,ar,Globex Corp,2026-04-01,2026-04-15,2800,0
+beacon-partners,INV-1005,ar,Initech,2026-01-01,2026-01-15,6000,0
+beacon-partners,INV-1006,ar,Umbrella Co,2026-05-20,2026-06-05,1500,1500
+beacon-partners,BILL-2001,ap,Office Supplies Co,2026-06-10,2026-07-10,900,0
+beacon-partners,BILL-2002,ap,Cloud Hosting Ltd,2026-05-25,2026-06-10,1200,0
+beacon-partners,BILL-2003,ap,Legal Advisors LLP,2026-03-01,2026-04-01,3500,0
+acme-ltd,INV-3001,ar,Stellar Systems,2026-06-25,2026-07-25,12000,0
+acme-ltd,INV-3002,ar,Wayne Enterprises,2026-05-10,2026-06-01,9000,3000
+acme-ltd,INV-3003,ar,Wonka Industries,2026-02-01,2026-02-20,4000,0
+acme-ltd,BILL-4001,ap,Cleaning Services,2026-06-15,2026-07-15,600,0
+acme-ltd,BILL-4002,ap,IT Support Inc,2026-04-20,2026-05-20,2200,0

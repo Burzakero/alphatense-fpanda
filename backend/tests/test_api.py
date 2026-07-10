@@ -7,6 +7,7 @@ from app.api.main import app
 client = TestClient(app)
 
 SAMPLE_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_financials.csv"
+SAMPLE_INVOICES_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_invoices.csv"
 
 
 def _upload_sample() -> str:
@@ -17,6 +18,15 @@ def _upload_sample() -> str:
         )
     assert response.status_code == 201
     return response.json()["workspace_id"]
+
+
+def _upload_sample_invoices(workspace_id: str) -> None:
+    with open(SAMPLE_INVOICES_CSV, "rb") as f:
+        response = client.post(
+            f"/workspaces/{workspace_id}/invoices",
+            files={"file": ("sample_invoices.csv", f, "text/csv")},
+        )
+    assert response.status_code == 201
 
 
 def test_health_check():
@@ -149,3 +159,79 @@ def test_portfolio_forecast_covers_both_clients():
     assert set(body.keys()) == {"acme-ltd", "beacon-partners"}
     for results in body.values():
         assert len(results) == 3  # best/base/worst for 1 period ahead
+
+
+def test_upload_invoices_returns_count():
+    workspace_id = _upload_sample()
+    with open(SAMPLE_INVOICES_CSV, "rb") as f:
+        response = client.post(
+            f"/workspaces/{workspace_id}/invoices",
+            files={"file": ("sample_invoices.csv", f, "text/csv")},
+        )
+    assert response.status_code == 201
+    assert response.json() == {"invoices_loaded": 14}
+
+
+def test_upload_invoices_rejects_unsupported_file_type():
+    workspace_id = _upload_sample()
+    response = client.post(
+        f"/workspaces/{workspace_id}/invoices",
+        files={"file": ("notes.txt", b"hello", "text/plain")},
+    )
+    assert response.status_code == 400
+
+
+def test_upload_invoices_unknown_workspace_returns_404():
+    with open(SAMPLE_INVOICES_CSV, "rb") as f:
+        response = client.post(
+            "/workspaces/does-not-exist/invoices",
+            files={"file": ("sample_invoices.csv", f, "text/csv")},
+        )
+    assert response.status_code == 404
+
+
+def test_client_aging_returns_buckets():
+    workspace_id = _upload_sample()
+    _upload_sample_invoices(workspace_id)
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/aging",
+        params={"type": "ar", "as_of": "2026-06-30"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["client_id"] == "beacon-partners"
+    assert body["type"] == "ar"
+    assert body["total_outstanding"] > 0
+    assert {b["bucket"] for b in body["buckets"]} == {"current", "1-30", "31-60", "61-90", "90+"}
+
+
+def test_client_aging_without_invoices_returns_404():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/aging",
+        params={"type": "ar", "as_of": "2026-06-30"},
+    )
+    assert response.status_code == 404
+
+
+def test_client_aging_invalid_type_returns_400():
+    workspace_id = _upload_sample()
+    _upload_sample_invoices(workspace_id)
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/aging",
+        params={"type": "not-a-type", "as_of": "2026-06-30"},
+    )
+    assert response.status_code == 400
+
+
+def test_client_aging_invalid_as_of_returns_400():
+    workspace_id = _upload_sample()
+    _upload_sample_invoices(workspace_id)
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/aging",
+        params={"type": "ar", "as_of": "not-a-date"},
+    )
+    assert response.status_code == 400

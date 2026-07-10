@@ -1,9 +1,12 @@
+from datetime import date
 from pathlib import Path
 
 from app.engine.workspace import Workspace
-from app.models.domain import Severity
+from app.ingestion.invoices import load_invoices
+from app.models.domain import InvoiceType, Severity
 
 SAMPLE_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_financials.csv"
+SAMPLE_INVOICES_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_invoices.csv"
 
 
 def test_workspace_discovers_all_clients():
@@ -52,3 +55,19 @@ def test_beacon_revenue_miss_is_material():
 def test_unknown_client_period_returns_none():
     ws = Workspace.from_file(SAMPLE_CSV)
     assert ws.build_client_report("nonexistent", "2026-06") is None
+
+
+def test_build_aging_report_after_adding_invoices():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    ws.add_invoices(load_invoices(SAMPLE_INVOICES_CSV))
+
+    report = ws.build_aging_report("beacon-partners", InvoiceType.AR, date(2026, 6, 30))
+
+    assert report is not None
+    assert report.client_id == "beacon-partners"
+    assert report.total_outstanding > 0
+
+
+def test_build_aging_report_returns_none_without_invoices():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    assert ws.build_aging_report("beacon-partners", InvoiceType.AR, date(2026, 6, 30)) is None

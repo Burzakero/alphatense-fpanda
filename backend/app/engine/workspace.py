@@ -16,13 +16,24 @@ product plan.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
+from app.engine.aging import calculate_aging
 from app.engine.forecast import ForecastError, generate_forecast
 from app.engine.kpis import calculate_kpis
 from app.engine.variance import analyze_variance
 from app.ingestion.parser import load_financial_statements
-from app.models.domain import FinancialStatement, ForecastResult, KPISet, Scenario, VarianceResult
+from app.models.domain import (
+    AgingReport,
+    FinancialStatement,
+    ForecastResult,
+    Invoice,
+    InvoiceType,
+    KPISet,
+    Scenario,
+    VarianceResult,
+)
 
 
 class ClientReport:
@@ -55,13 +66,14 @@ class ClientReport:
 class Workspace:
     """Loads one source file and computes reports for every client/period found in it."""
 
-    def __init__(self, statements: list[FinancialStatement]):
+    def __init__(self, statements: list[FinancialStatement], invoices: list[Invoice] | None = None):
         self._statements = statements
         # Index by (client_id, period, scenario) for O(1) lookups when pairing
         # actual statements with their budget/prior counterparts.
         self._by_key: dict[tuple[str, str, Scenario], FinancialStatement] = {
             (s.client_id, s.period, s.scenario): s for s in statements
         }
+        self._invoices: list[Invoice] = list(invoices) if invoices else []
 
     @classmethod
     def from_file(cls, path: str | Path) -> "Workspace":
@@ -151,3 +163,14 @@ class Workspace:
             except ForecastError:
                 continue
         return forecasts
+
+    def add_invoices(self, invoices: list[Invoice]) -> None:
+        """Attach AR/AP invoices to this workspace, on top of the P&L data already loaded."""
+        self._invoices.extend(invoices)
+
+    def build_aging_report(self, client_id: str, invoice_type: InvoiceType, as_of: date) -> AgingReport | None:
+        """AR or AP aging for one client, or None if no invoices of that type are on file for them."""
+        matching = [inv for inv in self._invoices if inv.client_id == client_id and inv.type == invoice_type]
+        if not matching:
+            return None
+        return calculate_aging(client_id, matching, invoice_type, as_of)
