@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { API_BASE_URL, ApiError, getClientForecast, getClientReport } from '../api/client'
+import { API_BASE_URL, ApiError, getAccessKey, getClientForecast, getClientReport } from '../api/client'
 import type { ClientReport, ForecastResult } from '../types'
 import { KpiCard } from '../components/KpiCard'
 import { VarianceTable } from '../components/VarianceTable'
@@ -48,7 +48,9 @@ export function ClientDetailPage() {
         </h1>
         {workspaceId && clientId && period && (
           <a
-            href={`${API_BASE_URL}/workspaces/${workspaceId}/clients/${clientId}/report/pdf?period=${period}`}
+            href={`${API_BASE_URL}/workspaces/${workspaceId}/clients/${clientId}/report/pdf?${new URLSearchParams(
+              { period, ...(getAccessKey() ? { key: getAccessKey()! } : {}) },
+            )}`}
             className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
           >
             Descargar informe PDF

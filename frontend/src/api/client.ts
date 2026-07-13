@@ -5,7 +5,21 @@ import type {
   PortfolioForecast,
 } from '../types'
 
-export const API_BASE_URL = 'http://127.0.0.1:8000'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
+
+const ACCESS_KEY_STORAGE = 'alphatense_access_key'
+
+export function getAccessKey(): string | null {
+  return localStorage.getItem(ACCESS_KEY_STORAGE)
+}
+
+export function setAccessKey(key: string): void {
+  localStorage.setItem(ACCESS_KEY_STORAGE, key)
+}
+
+function clearAccessKey(): void {
+  localStorage.removeItem(ACCESS_KEY_STORAGE)
+}
 
 export class ApiError extends Error {
   status: number
@@ -17,8 +31,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, init)
+  const accessKey = getAccessKey()
+  const headers = new Headers(init?.headers)
+  if (accessKey) headers.set('X-Demo-Key', accessKey)
+
+  const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
   if (!res.ok) {
+    if (res.status === 401) clearAccessKey()
     const body = await res.json().catch(() => null)
     const message = body?.detail ?? `Request failed with status ${res.status}`
     throw new ApiError(res.status, message)
