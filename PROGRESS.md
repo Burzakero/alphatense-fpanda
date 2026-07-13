@@ -181,18 +181,42 @@ esa extracción de texto (`�`) pero es un artefacto conocido de
 `reportlab`+`pypdf` al extraer, no un defecto del PDF real — reproducido
 en un PDF mínimo aislado para confirmar que no es algo introducido hoy.
 
+### Frontend: aging, cash flow, facturas y chat
+Con todo lo demás bloqueado esperando al usuario (API key, signups), se
+decidió dejar de posponer la parte de "exponer funcionalidad ya construida
+en el backend" (distinto de "pulido visual", que sigue pospuesto). El
+frontend ahora cubre los 5 endpoints de negocio, no solo 2:
+
+- `components/InvoiceUpload.tsx`: sube facturas AR/AP a un workspace ya
+  creado, incrustado en `PortfolioPage`.
+- `components/AgingSection.tsx`: formulario de fecha de corte → tablas de
+  buckets AR/AP + narrativa, en `ClientDetailPage`.
+- `components/CashFlowChart.tsx`: formulario de fecha + balance inicial →
+  gráfico de línea del balance proyectado (recharts, mismo patrón que
+  `ForecastChart`) + narrativa, en `ClientDetailPage`.
+- `pages/ChatPage.tsx` (ruta `/portfolio/:workspaceId/chat`): UI de chat
+  con el agente conversacional, `history` opaco reenviado en cada turno.
+  Maneja el 503 ("no configurado") de forma prolija en vez de un error
+  genérico — es el único camino de este feature que se puede probar hoy,
+  ya que la respuesta real del agente sigue bloqueada por la API key.
+
+Probado end-to-end contra el servidor real (no solo typecheck): aging y
+cash flow devuelven exactamente los mismos números ya verificados antes
+por curl; el chat muestra el mensaje del usuario y el aviso de "no
+configurado" correctamente ante el 503 real.
+
 ### Estado final de la suite de tests
-**98/98 tests pasando** (`cd backend && pytest -v`).
+**98/98 tests backend pasando** (`cd backend && pytest -v`) + typecheck
+del frontend limpio (`npx tsc -b`).
 
 ### Git
-Todo el trabajo de esta sesión (frontend, PDF ejecutivo, aging AR/AP,
-deploy-prep, cash flow) vive en `main` en commits separados por feature —
-salvo el deploy-prep y el agente de cash flow, que quedaron sin commitear
-todavía (se commitean cuando el usuario lo pida explícitamente). Pendiente
-además: el usuario hace el primer `git push` manualmente (requiere login
-interactivo por navegador con GitHub que no se puede completar desde este
-entorno) — después de eso el push queda desbloqueado para el resto de la
-sesión.
+Todo el trabajo de esta sesión vive en `main` en commits separados por
+feature, incluido el deploy-prep y el agente de cash flow (ya commiteados).
+Pendiente commitear: la pieza de frontend de aging/cash-flow/facturas/chat
+recién terminada. Además, el usuario sigue teniendo pendiente el primer
+`git push` manual (requiere login interactivo por navegador con GitHub que
+no se puede completar desde este entorno) — después de eso el push queda
+desbloqueado para el resto de la sesión.
 
 ## Qué falta (backlog, en el orden que fuimos priorizando)
 
@@ -200,9 +224,9 @@ sesión.
    Vercel** (código 100% listo, ver checklist arriba). Es lo que desbloquea
    el paso de validación con asesorías reales.
 2. **Agente FP&A conversacional — bloqueado por `ANTHROPIC_API_KEY`**
-   (construido y testeado salvo la verificación real, ahora con 5 tools
-   incluyendo cash flow). El usuario dijo que la consigue más adelante;
-   recordatorio programado para el lunes 2026-07-13 09:00.
+   (construido, testeado, y ahora con UI de chat lista). El usuario dijo
+   que la consigue más adelante; recordatorio programado para el lunes
+   2026-07-13 09:00.
 3. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
    código. Una vez deployado, mandar la URL en vez de pedir clonar el repo.
 4. **Conector Xero** — bloqueado: requiere que el usuario consiga una
@@ -210,11 +234,9 @@ sesión.
    Alternativa evaluada y no descartada: construirlo primero contra un
    adaptador simulado para no bloquear el avance de código.
 5. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth.
-6. **Pulido del frontend** (diseño, responsive, loading states, etc.,
-   incluyendo exponer aging y cash flow en la UI) — deliberadamente
-   pospuesto hasta el final del proyecto. Con esto, los dos agentes
-   especializados del plan original (aging AR/AP y cash flow) ya están
-   completos en el backend.
+6. **Pulido visual del frontend** (diseño, responsive, loading states,
+   etc.) — es lo único de "frontend" que sigue deliberadamente pospuesto
+   para el final; toda la funcionalidad ya está expuesta en la UI.
 
 ## Cómo correr todo hoy
 

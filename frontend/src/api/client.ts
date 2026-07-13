@@ -1,7 +1,10 @@
 import type {
+  AgingReport,
+  CashFlowForecast,
   ClientReport,
   CreateWorkspaceResponse,
   ForecastResult,
+  InvoiceType,
   PortfolioForecast,
 } from '../types'
 
@@ -86,4 +89,50 @@ export function getPortfolioForecast(
 ): Promise<PortfolioForecast> {
   const params = new URLSearchParams({ periods_ahead: String(periodsAhead) })
   return request(`/workspaces/${workspaceId}/portfolio/forecast?${params}`)
+}
+
+export function uploadInvoices(workspaceId: string, file: File): Promise<{ invoices_loaded: number }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request(`/workspaces/${workspaceId}/invoices`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
+export function getClientAging(
+  workspaceId: string,
+  clientId: string,
+  type: InvoiceType,
+  asOf: string,
+): Promise<AgingReport> {
+  const params = new URLSearchParams({ type, as_of: asOf })
+  return request(`/workspaces/${workspaceId}/clients/${clientId}/aging?${params}`)
+}
+
+export function getClientCashFlow(
+  workspaceId: string,
+  clientId: string,
+  startingBalance: number,
+  asOf: string,
+  weeksAhead = 13,
+): Promise<CashFlowForecast> {
+  const params = new URLSearchParams({
+    starting_balance: String(startingBalance),
+    as_of: asOf,
+    weeks_ahead: String(weeksAhead),
+  })
+  return request(`/workspaces/${workspaceId}/clients/${clientId}/cash-flow?${params}`)
+}
+
+export function chat(
+  workspaceId: string,
+  message: string,
+  history: unknown[],
+): Promise<{ reply: string; history: unknown[] }> {
+  return request(`/workspaces/${workspaceId}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, history }),
+  })
 }

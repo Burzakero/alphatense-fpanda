@@ -5,6 +5,8 @@ import type { ClientReport, ForecastResult } from '../types'
 import { KpiCard } from '../components/KpiCard'
 import { VarianceTable } from '../components/VarianceTable'
 import { ForecastChart } from '../components/ForecastChart'
+import { AgingSection } from '../components/AgingSection'
+import { CashFlowChart } from '../components/CashFlowChart'
 
 export function ClientDetailPage() {
   const { workspaceId, clientId } = useParams<{ workspaceId: string; clientId: string }>()
@@ -92,6 +94,13 @@ export function ClientDetailPage() {
         {forecastError && <p className="text-sm text-slate-400">{forecastError}</p>}
         {forecast && <ForecastChart forecasts={forecast} />}
       </div>
+
+      {workspaceId && clientId && (
+        <div className="mt-8 space-y-8">
+          <AgingSection workspaceId={workspaceId} clientId={clientId} />
+          <CashFlowChart workspaceId={workspaceId} clientId={clientId} />
+        </div>
+      )}
     </div>
   )
 }

@@ -76,3 +76,38 @@ export interface CreateWorkspaceResponse {
 export interface PortfolioForecast {
   [clientId: string]: ForecastResult[]
 }
+
+export type InvoiceType = 'ar' | 'ap'
+export type AgingBucket = 'current' | '1-30' | '31-60' | '61-90' | '90+'
+
+export interface AgingBucketAmount {
+  bucket: AgingBucket
+  amount: number
+  invoice_count: number
+}
+
+export interface AgingReport {
+  client_id: string
+  type: InvoiceType
+  as_of: string
+  total_outstanding: number
+  buckets: AgingBucketAmount[]
+  narrative: string
+}
+
+export interface CashFlowWeek {
+  week_start: string
+  week_end: string
+  ar_inflows: number
+  ap_outflows: number
+  net_change: number
+  ending_balance: number
+}
+
+export interface CashFlowForecast {
+  client_id: string
+  as_of: string
+  starting_balance: number
+  weeks: CashFlowWeek[]
+  narrative: string
+}

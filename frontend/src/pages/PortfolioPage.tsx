@@ -4,6 +4,7 @@ import { ApiError, getPortfolioReport } from '../api/client'
 import type { ClientReport } from '../types'
 import { KpiCard } from '../components/KpiCard'
 import { SeverityBadge } from '../components/SeverityBadge'
+import { InvoiceUpload } from '../components/InvoiceUpload'
 
 export function PortfolioPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -27,10 +28,20 @@ export function PortfolioPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Portfolio</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Portfolio</h1>
+        <Link
+          to={`/portfolio/${workspaceId}/chat`}
+          className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+        >
+          💬 Preguntarle al analista IA
+        </Link>
+      </div>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         {reports.length} reporte{reports.length === 1 ? '' : 's'} cliente/periodo encontrados.
       </p>
+
+      <div className="mt-4">{workspaceId && <InvoiceUpload workspaceId={workspaceId} />}</div>
 
       <div className="mt-6 space-y-4">
         {reports.map((report) => {
