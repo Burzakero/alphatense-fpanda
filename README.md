@@ -3,10 +3,15 @@
 Copiloto de IA para asesorías financieras (UK & US): un analista financiero
 senior disponible 24/7, encima del ERP de cada cliente.
 
-Este repositorio contiene el **motor FP&A** (Fase 1 del plan de producto):
-ingesta de Excel/CSV, cálculo de KPIs y variance analysis con narrativa en
-lenguaje natural, sobre una arquitectura multi-cliente nativa (una asesoría
-gestiona decenas de clientes desde un panel único).
+Este repositorio contiene el **motor FP&A** (Fase 1 del plan de producto) y
+gran parte de Fase 2: ingesta de Excel/CSV, KPIs, variance analysis,
+forecast, aging AR/AP y cash flow con narrativa en lenguaje natural, un
+agente conversacional sobre Claude, un frontend React que consume todo
+eso, y generación de PDF ejecutivo — sobre una arquitectura multi-cliente
+nativa (una asesoría gestiona decenas de clientes desde un panel único).
+
+Ver `PROGRESS.md` para el detalle sesión a sesión de qué se construyó, qué
+decisiones técnicas se tomaron y por qué, y qué sigue bloqueado.
 
 ## Estado actual
 
@@ -18,35 +23,54 @@ gestiona decenas de clientes desde un panel único).
       desvío
 - [x] Orquestador multi-cliente (`Workspace`) que procesa un archivo con
       varios clientes/periodos en una sola llamada
+- [x] Generación del informe ejecutivo en PDF con un clic
+- [x] Frontend (React) que consume la API completa
+- [ ] Conector Xero (requiere credenciales OAuth reales)
+- [ ] Agente FP&A conversacional -- **construido**, pendiente de
+      `ANTHROPIC_API_KEY` para probarlo en vivo
 
 **Fase 2 -- en progreso**
 - [x] Forecast AI con escenarios (best/base/worst) a partir del historial
       de actuals de cada cliente, con narrativa de las tasas de crecimiento
       asumidas
-- [x] API HTTP (FastAPI) que expone todo el motor (ingesta, KPIs, variance,
-      forecast) por HTTP, lista para que la consuma un frontend
-- [ ] Conector QuickBooks (requiere credenciales OAuth reales -- pendiente
-      de decidir si se construye como adaptador simulado mientras tanto)
-- [ ] Agentes especializados adicionales (cash flow, aging AR/AP)
-- [ ] Conector Xero (Fase 1, aún no construido)
-- [ ] Generación del informe ejecutivo en PDF con un clic
-- [ ] Frontend
+- [x] API HTTP (FastAPI) que expone todo el motor por HTTP
+- [x] Agente de aging AR/AP (antigüedad de cuentas por cobrar/pagar)
+- [x] Agente de cash flow (proyección de 13 semanas a partir de facturas
+      AR/AP con fecha de vencimiento)
+- [ ] Conector QuickBooks (requiere credenciales OAuth reales)
+- [ ] Deploy público (Railway + Vercel) -- código listo, falta el signup
+      del usuario
 
 ## Estructura
 
 ```
 backend/
   app/
-    models/domain.py     # Advisor, Client, LineItem, FinancialStatement, KPISet, VarianceResult
-    ingestion/parser.py  # Excel/CSV -> FinancialStatement (validación de esquema)
-    engine/kpis.py        # FinancialStatement -> KPISet
-    engine/variance.py    # KPISet actual vs budget/prior -> VarianceResult (+ narrativa)
-    engine/forecast.py    # historial de actuals -> ForecastResult (best/base/worst)
-    engine/workspace.py   # Orquestador multi-cliente: un archivo -> reportes + forecasts de todo el portfolio
-    api/main.py           # FastAPI: expone el motor completo por HTTP
+    models/domain.py      # Advisor, Client, LineItem, FinancialStatement, KPISet, VarianceResult,
+                           # ForecastResult, Invoice, AgingReport, CashFlowForecast
+    ingestion/parser.py    # Excel/CSV -> FinancialStatement (validación de esquema)
+    ingestion/invoices.py  # Excel/CSV -> Invoice (esquema de facturas AR/AP, separado del anterior)
+    engine/kpis.py         # FinancialStatement -> KPISet
+    engine/variance.py     # KPISet actual vs budget/prior -> VarianceResult (+ narrativa)
+    engine/forecast.py     # historial de actuals -> ForecastResult (best/base/worst)
+    engine/aging.py        # facturas AR/AP -> AgingReport (buckets por días de vencimiento)
+    engine/cash_flow.py    # facturas AR/AP -> CashFlowForecast (balance proyectado semana a semana)
+    engine/workspace.py    # Orquestador multi-cliente: un archivo -> reportes + forecasts + aging + cash flow
+    agents/fpa_agent.py    # Agente conversacional (Claude) sobre las 5 capacidades del motor
+    reporting/pdf_report.py # ClientReport (+ forecast/aging/cash flow opcionales) -> PDF ejecutivo
+    api/main.py            # FastAPI: expone el motor completo por HTTP
+    api/auth.py             # Gate de acceso compartido para el deploy público (no-op en dev local)
   sample_data/sample_financials.csv  # 2 clientes de ejemplo, 3 escenarios cada uno
-  tests/                # pytest, cobertura de ingesta, KPIs, variance, workspace y API
-  run_demo.py           # demo end-to-end por consola
+  sample_data/sample_invoices.csv    # facturas AR/AP de ejemplo, cubriendo los 5 buckets de aging
+  tests/                 # pytest, cobertura de cada módulo de arriba
+  run_demo.py            # demo end-to-end por consola
+
+frontend/                # React + Vite + TypeScript + Tailwind
+  src/
+    pages/                # UploadPage, PortfolioPage, ClientDetailPage, ChatPage
+    components/           # KpiCard, VarianceTable, ForecastChart, AgingSection, CashFlowChart,
+                          # InvoiceUpload, AccessGate
+    api/client.ts         # cliente HTTP tipado contra la API de arriba
 ```
 
 ## Cómo correrlo
@@ -55,7 +79,7 @@ backend/
 cd backend
 pip install -r requirements.txt
 
-# correr los tests (incluye los de la API)
+# correr los tests
 pytest -v
 
 # ver el motor en acción con los datos de ejemplo
@@ -65,7 +89,19 @@ python run_demo.py
 uvicorn app.api.main:app --reload
 ```
 
-## Esquema de datos esperado (Excel/CSV)
+```bash
+cd frontend
+npm install
+npm run dev   # http://localhost:5173, apunta a la API en 127.0.0.1:8000 por defecto
+```
+
+Para el agente conversacional, copiar `backend/.env.example` a `backend/.env`
+y completar `ANTHROPIC_API_KEY`. Sin esa variable, `POST /chat` responde
+`503` de forma controlada (no rompe el resto de la API).
+
+## Esquema de datos esperado
+
+### Excel/CSV de financials (P&L)
 
 | columna     | descripción                                                          |
 |-------------|-----------------------------------------------------------------------|
@@ -78,6 +114,21 @@ uvicorn app.api.main:app --reload
 
 Ver `backend/sample_data/sample_financials.csv` para un ejemplo completo con
 dos clientes.
+
+### Excel/CSV de facturas AR/AP (opcional, habilita aging y cash flow)
+
+| columna       | descripción                                                    |
+|---------------|-------------------------------------------------------------------|
+| client_id     | identificador del cliente (o `client_name`, igual que arriba)     |
+| invoice_id    | identificador de la factura, ej. `INV-1042`                       |
+| type          | `ar` (cuenta por cobrar) o `ap` (cuenta por pagar)                 |
+| counterparty  | nombre del cliente final (AR) o proveedor (AP)                    |
+| issue_date    | fecha de emisión, ISO (`2026-06-15`)                               |
+| due_date      | fecha de vencimiento, ISO                                          |
+| amount        | monto total de la factura                                          |
+| amount_paid   | opcional, default 0 -- monto ya cobrado/pagado                     |
+
+Ver `backend/sample_data/sample_invoices.csv` para un ejemplo completo.
 
 ## Diseño multi-cliente
 
@@ -101,59 +152,75 @@ riesgo, no un adorno.
 
 Es deliberadamente determinístico (sin llamada a un LLM): cada número se
 puede rastrear hasta una tasa de crecimiento concreta que el asesor puede
-auditar. Una mejora de redacción de la narrativa vía LLM se puede agregar
-después envolviendo la salida de este módulo, sin tocar cómo se lo llama.
+auditar.
 
-```bash
-python run_demo.py   # ahora también imprime el forecast a 3 periodos por cliente
-```
+## Aging AR/AP y cash flow (Fase 2)
 
-`Workspace.build_forecast(client_id, periods_ahead=3)` y
-`Workspace.build_portfolio_forecast(periods_ahead=3)` exponen esto a nivel
-de un cliente o de todo el portfolio, respectivamente. Requiere al menos 2
-periodos de actuals cargados para ese cliente.
+`engine/aging.py` bucketea las facturas abiertas de un cliente (AR o AP)
+por días de vencimiento (current, 1-30, 31-60, 61-90, 90+), con narrativa
+que nombra a la contraparte con mayor saldo abierto.
 
-## API HTTP (Fase 2)
+`engine/cash_flow.py` proyecta el balance de caja semana a semana (13
+semanas por defecto) a partir de esas mismas facturas AR/AP, más un balance
+inicial que provee el asesor (no hay bank feed en el sistema). Deliberadamente
+no mezcla un promedio de opex histórico como salida recurrente, para evitar
+doble conteo contra las facturas de AP que ya representan parte de esos
+gastos -- el scope queda explícito en la narrativa del resultado.
 
-`app/api/main.py` expone el motor completo (ingesta, KPIs, variance,
-forecast) por HTTP con FastAPI, para que un frontend (o cualquier cliente
-HTTP) pueda usarlo sin importar el paquete Python directamente.
+Ambos requieren subir un archivo de facturas (`POST /workspaces/{id}/invoices`)
+además del archivo de financials.
 
-No hay base de datos todavía: cada archivo subido se procesa en memoria y
-queda guardado bajo un `workspace_id` (UUID) generado en el momento, válido
-mientras el proceso siga corriendo. Es la primera pieza de infraestructura
-de la Fase 2 -- una capa de persistencia real puede reemplazar el
-diccionario en memoria más adelante sin cambiar ninguna ruta.
+## Agente conversacional (Fase 1/2)
+
+`app/agents/fpa_agent.py` expone las cinco capacidades del motor (resumen de
+portfolio, reporte de cliente, forecast, aging, cash flow) como tools de
+Claude (`claude-opus-4-8`, vía el SDK de Anthropic) para que un asesor
+pregunte en lenguaje natural en vez de navegar la API o la UI a mano. El
+agente nunca calcula nada por su cuenta -- solo decide qué tool llamar y
+narra el resultado, así que cada número sigue siendo el mismo que devuelve
+el motor determinístico.
+
+Requiere `ANTHROPIC_API_KEY` en `backend/.env`. Sin ella, `POST /chat`
+responde `503` en vez de fallar de forma confusa.
+
+## PDF ejecutivo (Fase 1)
+
+`app/reporting/pdf_report.py` (ReportLab, sin dependencias de sistema)
+genera un PDF con KPIs, variance analysis, forecast, y -- si se pasan los
+parámetros `as_of`/`starting_balance` -- también aging y cash flow. Es el
+documento que un asesor le manda a su cliente o usa en la reunión mensual.
+
+## API HTTP
+
+`app/api/main.py` expone el motor completo por HTTP con FastAPI. No hay
+base de datos: cada archivo subido se procesa en memoria bajo un
+`workspace_id` (UUID), válido mientras el proceso siga corriendo.
 
 | método | ruta | qué hace |
 |--------|------|----------|
 | GET  | `/health` | chequeo de salud |
-| POST | `/workspaces` | sube un CSV/Excel (`multipart/form-data`, campo `file`) y crea un workspace |
-| GET  | `/workspaces/{workspace_id}/clients` | lista los `client_id` encontrados en el archivo |
-| GET  | `/workspaces/{workspace_id}/portfolio` | KPIs + variance analysis de todos los clientes/periodos |
-| GET  | `/workspaces/{workspace_id}/clients/{client_id}/report?period=2026-06` | reporte de un cliente/periodo puntual |
-| GET  | `/workspaces/{workspace_id}/clients/{client_id}/forecast?periods_ahead=3` | forecast best/base/worst de un cliente |
-| GET  | `/workspaces/{workspace_id}/portfolio/forecast?periods_ahead=3` | forecast de todos los clientes con suficiente historial |
-
-Ejemplo rápido con `curl`:
-
-```bash
-uvicorn app.api.main:app --reload &
-
-WS=$(curl -s -X POST http://127.0.0.1:8000/workspaces \
-  -F "file=@sample_data/sample_financials.csv" | python -c "import sys,json;print(json.load(sys.stdin)['workspace_id'])")
-
-curl -s "http://127.0.0.1:8000/workspaces/$WS/portfolio" | python -m json.tool
-```
+| POST | `/workspaces` | sube un CSV/Excel de financials y crea un workspace |
+| POST | `/workspaces/{id}/invoices` | sube un CSV/Excel de facturas AR/AP al workspace |
+| GET  | `/workspaces/{id}/clients` | lista los `client_id` encontrados |
+| GET  | `/workspaces/{id}/portfolio` | KPIs + variance de todos los clientes/periodos |
+| GET  | `/workspaces/{id}/clients/{client_id}/report?period=2026-06` | reporte de un cliente/periodo |
+| GET  | `/workspaces/{id}/clients/{client_id}/report/pdf?period=...&as_of=...&starting_balance=...` | PDF ejecutivo |
+| GET  | `/workspaces/{id}/clients/{client_id}/forecast?periods_ahead=3` | forecast best/base/worst |
+| GET  | `/workspaces/{id}/portfolio/forecast?periods_ahead=3` | forecast de todo el portfolio |
+| GET  | `/workspaces/{id}/clients/{client_id}/aging?type=ar\|ap&as_of=2026-06-30` | aging AR o AP |
+| GET  | `/workspaces/{id}/clients/{client_id}/cash-flow?starting_balance=...&as_of=...&weeks_ahead=13` | proyección de cash flow |
+| POST | `/workspaces/{id}/chat` | pregunta al agente conversacional |
 
 Con el servidor corriendo, la documentación interactiva (Swagger) queda
 disponible en `http://127.0.0.1:8000/docs`.
 
-## Próximos pasos (según el plan de producto)
+## Próximos pasos
 
-1. Validar tarifas y dolor real con 5-10 asesorías UK antes de seguir
-   construyendo
-2. Conector Xero + agente FP&A conversacional (Fase 1, pendiente)
-3. Conector QuickBooks + más agentes especializados (resto de Fase 2)
-4. Generación del PDF ejecutivo con un clic
-5. Frontend (ya puede empezar a consumir la API)
+1. El usuario consigue `ANTHROPIC_API_KEY` y hace el signup en Railway +
+   Vercel (código listo para ambos, ver `PROGRESS.md`).
+2. Validar tarifas y dolor real con 5-10 asesorías UK, mandando la URL
+   deployada en vez de pedir clonar el repo.
+3. Conector Xero (bloqueado por credenciales OAuth reales).
+4. Conector QuickBooks (mismo bloqueo).
+5. Pulido visual del frontend (diseño, responsive, loading states) --
+   deliberadamente pospuesto hasta el final del proyecto.
