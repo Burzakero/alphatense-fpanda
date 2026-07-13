@@ -9,6 +9,7 @@ call directly:
     GET  /workspaces/{workspace_id}/clients              -- list client ids found in the file
     GET  /workspaces/{workspace_id}/portfolio            -- KPIs + variance for every client/period
     GET  /workspaces/{workspace_id}/clients/{client_id}/report?period=...
+    GET  /workspaces/{workspace_id}/clients/{client_id}/report/pdf?period=...&as_of=2026-06-30&starting_balance=50000
     GET  /workspaces/{workspace_id}/clients/{client_id}/forecast?periods_ahead=3
     GET  /workspaces/{workspace_id}/portfolio/forecast?periods_ahead=3
     POST /workspaces/{workspace_id}/invoices                     -- attach an AR/AP invoices file
@@ -176,8 +177,22 @@ def client_report(workspace_id: str, client_id: str, period: str) -> dict:
 
 
 @app.get("/workspaces/{workspace_id}/clients/{client_id}/report/pdf")
-def client_report_pdf(workspace_id: str, client_id: str, period: str, periods_ahead: int = 3) -> Response:
-    """One-click executive PDF: KPIs + variance + forecast (if there's enough history)."""
+def client_report_pdf(
+    workspace_id: str,
+    client_id: str,
+    period: str,
+    periods_ahead: int = 3,
+    as_of: str | None = None,
+    starting_balance: float | None = None,
+    weeks_ahead: int = 13,
+) -> Response:
+    """One-click executive PDF: KPIs + variance + forecast, plus aging and cash flow if requested.
+
+    `as_of` (a real calendar date, unlike `period`) opts into the aging
+    section (if invoices are on file) and, combined with
+    `starting_balance`, the cash flow section. Omit both to get the same
+    PDF as before -- these sections are additive, not required.
+    """
     workspace = _get_workspace(workspace_id)
     report = workspace.build_client_report(client_id, period)
     if report is None:
@@ -191,7 +206,27 @@ def client_report_pdf(workspace_id: str, client_id: str, period: str, periods_ah
     except ForecastError:
         forecast = None
 
-    pdf_bytes = generate_client_pdf(report, forecast)
+    aging_reports: list = []
+    cash_flow = None
+    if as_of is not None:
+        try:
+            as_of_date = date.fromisoformat(as_of)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid as_of date '{as_of}' (expected YYYY-MM-DD)"
+            ) from exc
+
+        for invoice_type in InvoiceType:
+            aging_report = workspace.build_aging_report(client_id, invoice_type, as_of_date)
+            if aging_report is not None:
+                aging_reports.append(aging_report)
+
+        if starting_balance is not None:
+            cash_flow = workspace.build_cash_flow_forecast(
+                client_id, starting_balance, as_of_date, weeks_ahead=weeks_ahead
+            )
+
+    pdf_bytes = generate_client_pdf(report, forecast, aging_reports=aging_reports, cash_flow=cash_flow)
     filename = f"{client_id}_{period}.pdf"
     return Response(
         content=pdf_bytes,

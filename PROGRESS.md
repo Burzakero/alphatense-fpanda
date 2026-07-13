@@ -163,8 +163,26 @@ login interactivo por navegador, mismo motivo que el `git push`):
 3. Redeploy en Vercel después de setear `VITE_API_BASE_URL` (el build la
    necesita presente al compilar, no solo en runtime).
 
+### PDF ejecutivo enriquecido con aging y cash flow
+El PDF (`app/reporting/pdf_report.py`) ahora suma dos secciones opcionales,
+reutilizando los mismos resultados que ya calculan aging.py y cash_flow.py
+— nada de lógica nueva, solo layout:
+
+- Sección "Aging AR/AP" (una tabla de buckets por tipo AR/AP + narrativa).
+- Sección "Cash Flow Proyectado" (tabla semana a semana + narrativa).
+
+`GET /report/pdf` suma parámetros opcionales `as_of` (activa aging, y si
+además viene `starting_balance`, activa cash flow) y `weeks_ahead`. Sin
+esos parámetros, el PDF sale idéntico a como estaba antes — son aditivos,
+no rompen el comportamiento existente. Probado generando un PDF real
+contra el servidor con `sample_invoices.csv` y extrayendo el texto con
+`pypdf` para confirmar que los números calzan; el símbolo `£` se ve mal en
+esa extracción de texto (`�`) pero es un artefacto conocido de
+`reportlab`+`pypdf` al extraer, no un defecto del PDF real — reproducido
+en un PDF mínimo aislado para confirmar que no es algo introducido hoy.
+
 ### Estado final de la suite de tests
-**93/93 tests pasando** (`cd backend && pytest -v`).
+**98/98 tests pasando** (`cd backend && pytest -v`).
 
 ### Git
 Todo el trabajo de esta sesión (frontend, PDF ejecutivo, aging AR/AP,

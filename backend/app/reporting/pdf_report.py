@@ -23,7 +23,7 @@ from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.engine.workspace import ClientReport
-from app.models.domain import ForecastResult, VarianceResult
+from app.models.domain import AgingReport, CashFlowForecast, ForecastResult, VarianceResult
 
 _HEADER_BG = colors.HexColor("#eef2ff")
 _GRID_COLOR = colors.HexColor("#e2e8f0")
@@ -100,12 +100,61 @@ def _forecast_section(forecast: list[ForecastResult], styles) -> list:
     return elements
 
 
-def generate_client_pdf(report: ClientReport, forecast: list[ForecastResult] | None = None) -> bytes:
+def _aging_section(aging_reports: list[AgingReport], styles) -> list:
+    elements: list = [Paragraph("Aging AR/AP", styles["Heading2"])]
+    narrative_style = ParagraphStyle("aging_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
+    for report in aging_reports:
+        elements.append(
+            Paragraph(f"{report.type.value.upper()} — Total: {_currency(report.total_outstanding)}", styles["Heading3"])
+        )
+        rows = [["Bucket", "Monto", "Facturas"]]
+        for b in report.buckets:
+            rows.append([b.bucket.value, _currency(b.amount), str(b.invoice_count)])
+        table = Table(rows, colWidths=[100, 150, 100])
+        table.setStyle(_table_style())
+        elements.append(table)
+        elements.append(Paragraph(report.narrative, narrative_style))
+        elements.append(Spacer(1, 12))
+    return elements
+
+
+def _cash_flow_section(cash_flow: CashFlowForecast, styles) -> list:
+    elements: list = [
+        Paragraph(f"Cash Flow Proyectado ({len(cash_flow.weeks)} semanas)", styles["Heading2"]),
+    ]
+    rows = [["Semana", "AR", "AP", "Neto", "Balance"]]
+    for w in cash_flow.weeks:
+        rows.append(
+            [
+                str(w.week_start),
+                _currency(w.ar_inflows),
+                _currency(w.ap_outflows),
+                _currency(w.net_change),
+                _currency(w.ending_balance),
+            ]
+        )
+    table = Table(rows, colWidths=[80, 90, 90, 90, 90], repeatRows=1)
+    table.setStyle(_table_style())
+    elements.append(table)
+    elements.append(Spacer(1, 6))
+    narrative_style = ParagraphStyle("cash_flow_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
+    elements.append(Paragraph(cash_flow.narrative, narrative_style))
+    return elements
+
+
+def generate_client_pdf(
+    report: ClientReport,
+    forecast: list[ForecastResult] | None = None,
+    aging_reports: list[AgingReport] | None = None,
+    cash_flow: CashFlowForecast | None = None,
+) -> bytes:
     """Render one client/period's executive report to PDF bytes.
 
-    `forecast` is optional: a client with fewer than 2 actual periods on
-    file has no trend to project, and the forecast section is simply
-    omitted rather than failing the whole report.
+    `forecast`, `aging_reports`, and `cash_flow` are all optional and each
+    section is simply omitted when its data isn't available or wasn't
+    requested -- a client with fewer than 2 actual periods on file has no
+    trend to project, aging needs invoices on file, and cash flow needs an
+    advisor-supplied starting balance.
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -145,6 +194,13 @@ def generate_client_pdf(report: ClientReport, forecast: list[ForecastResult] | N
 
     if forecast:
         elements += _forecast_section(forecast, styles)
+        elements.append(Spacer(1, 16))
+
+    if aging_reports:
+        elements += _aging_section(aging_reports, styles)
+
+    if cash_flow is not None:
+        elements += _cash_flow_section(cash_flow, styles)
 
     doc.build(elements)
     return buffer.getvalue()
