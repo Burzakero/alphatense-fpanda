@@ -253,6 +253,30 @@ def test_upload_invoices_returns_count():
     assert response.json() == {"invoices_loaded": 14}
 
 
+def test_xero_sync_returns_summary_and_appears_in_portfolio():
+    workspace_id = _upload_sample()
+    response = client.post(
+        f"/workspaces/{workspace_id}/xero/sync",
+        json={"tenant_id": "demo-tenant-xero", "client_id": "xero-demo-co", "period": "2026-06"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["client_id"] == "xero-demo-co"
+    assert body["line_items_loaded"] == 6
+    assert body["invoices_loaded"] == 3
+
+    portfolio = client.get(f"/workspaces/{workspace_id}/portfolio").json()
+    assert any(r["client_id"] == "xero-demo-co" for r in portfolio)
+
+
+def test_xero_sync_unknown_workspace_returns_404():
+    response = client.post(
+        "/workspaces/does-not-exist/xero/sync",
+        json={"tenant_id": "demo-tenant-xero", "client_id": "xero-demo-co", "period": "2026-06"},
+    )
+    assert response.status_code == 404
+
+
 def test_upload_invoices_rejects_unsupported_file_type():
     workspace_id = _upload_sample()
     response = client.post(

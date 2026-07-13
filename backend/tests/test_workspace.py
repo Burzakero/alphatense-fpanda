@@ -3,7 +3,7 @@ from pathlib import Path
 
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
-from app.models.domain import InvoiceType, Severity
+from app.models.domain import FinancialStatement, InvoiceType, LineItem, Scenario, Severity, AccountCategory
 
 SAMPLE_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_financials.csv"
 SAMPLE_INVOICES_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_invoices.csv"
@@ -88,3 +88,26 @@ def test_build_cash_flow_forecast_without_invoices_is_flat():
     ws = Workspace.from_file(SAMPLE_CSV)
     forecast = ws.build_cash_flow_forecast("beacon-partners", starting_balance=5000, as_of=date(2026, 6, 30))
     assert all(w.ending_balance == 5000 for w in forecast.weeks)
+
+
+def test_add_statements_makes_new_client_available():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    assert "xero-demo-co" not in ws.client_ids
+
+    new_statement = FinancialStatement(
+        client_id="xero-demo-co",
+        period="2026-06",
+        scenario=Scenario.ACTUAL,
+        line_items=[
+            LineItem(
+                client_id="xero-demo-co", period="2026-06", scenario=Scenario.ACTUAL,
+                account="Sales", category=AccountCategory.REVENUE, amount=1000,
+            )
+        ],
+    )
+    ws.add_statements([new_statement])
+
+    assert "xero-demo-co" in ws.client_ids
+    report = ws.build_client_report("xero-demo-co", "2026-06")
+    assert report is not None
+    assert report.actual_kpis.revenue == 1000

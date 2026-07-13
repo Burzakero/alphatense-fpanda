@@ -16,6 +16,7 @@ call directly:
     GET  /workspaces/{workspace_id}/clients/{client_id}/aging?type=ar&as_of=2026-06-30
     POST /workspaces/{workspace_id}/chat                          -- ask the conversational FP&A agent
     GET  /workspaces/{workspace_id}/clients/{client_id}/cash-flow?starting_balance=50000&as_of=2026-06-30&weeks_ahead=13
+    POST /workspaces/{workspace_id}/xero/sync                     -- sync a client's P&L + invoices from Xero (simulated)
 
 Workspaces are held in memory for the lifetime of the process, keyed by a
 generated UUID -- there's no database yet (this is the first infrastructure
@@ -45,6 +46,8 @@ from app.engine.forecast import ForecastError
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
 from app.ingestion.parser import IngestionError
+from app.integrations.xero.client import FakeXeroClient
+from app.integrations.xero.sync import sync_client_from_xero
 from app.models.domain import InvoiceType
 from app.reporting.pdf_report import generate_client_pdf
 
@@ -145,6 +148,35 @@ async def upload_invoices(workspace_id: str, file: UploadFile = File(...)) -> di
 
     workspace.add_invoices(invoices)
     return {"invoices_loaded": len(invoices)}
+
+
+class XeroSyncRequest(BaseModel):
+    tenant_id: str
+    client_id: str
+    period: str
+
+
+@app.post("/workspaces/{workspace_id}/xero/sync", status_code=201)
+def xero_sync(workspace_id: str, request: XeroSyncRequest) -> dict:
+    """Sync one client's P&L + AR/AP invoices from Xero into this workspace.
+
+    Simulated for now: uses FakeXeroClient (static fixtures for
+    tenant_id="demo-tenant-xero"), not a real OAuth-connected Xero org --
+    see app/integrations/xero/client.py. Swapping in a RealXeroClient later
+    doesn't change this route.
+    """
+    workspace = _get_workspace(workspace_id)
+    statement, invoices = sync_client_from_xero(
+        FakeXeroClient(), request.tenant_id, request.client_id, request.period
+    )
+    workspace.add_statements([statement])
+    workspace.add_invoices(invoices)
+    return {
+        "client_id": request.client_id,
+        "period": request.period,
+        "line_items_loaded": len(statement.line_items),
+        "invoices_loaded": len(invoices),
+    }
 
 
 @app.get("/workspaces/{workspace_id}/clients")

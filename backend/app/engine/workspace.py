@@ -166,6 +166,18 @@ class Workspace:
                 continue
         return forecasts
 
+    def add_statements(self, statements: list[FinancialStatement]) -> None:
+        """Attach P&L statements to this workspace, on top of whatever's already loaded.
+
+        Same role as `add_invoices()` but for financials -- lets a source
+        other than the initial file upload (e.g. a Xero sync) contribute a
+        client's data to an existing workspace instead of requiring its own
+        separate one.
+        """
+        self._statements.extend(statements)
+        for s in statements:
+            self._by_key[(s.client_id, s.period, s.scenario)] = s
+
     def add_invoices(self, invoices: list[Invoice]) -> None:
         """Attach AR/AP invoices to this workspace, on top of the P&L data already loaded."""
         self._invoices.extend(invoices)

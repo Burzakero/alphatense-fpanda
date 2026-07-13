@@ -25,7 +25,9 @@ decisiones técnicas se tomaron y por qué, y qué sigue bloqueado.
       varios clientes/periodos en una sola llamada
 - [x] Generación del informe ejecutivo en PDF con un clic
 - [x] Frontend (React) que consume la API completa
-- [ ] Conector Xero (requiere credenciales OAuth reales)
+- [ ] Conector Xero -- **mapeo de datos construido y probado contra un
+      adaptador simulado**, falta el `RealXeroClient` (credenciales OAuth
+      reales)
 - [ ] Agente FP&A conversacional -- **construido**, pendiente de
       `ANTHROPIC_API_KEY` para probarlo en vivo
 
@@ -58,6 +60,7 @@ backend/
     engine/workspace.py    # Orquestador multi-cliente: un archivo -> reportes + forecasts + aging + cash flow
     agents/fpa_agent.py    # Agente conversacional (Claude) sobre las 5 capacidades del motor
     reporting/pdf_report.py # ClientReport (+ forecast/aging/cash flow opcionales) -> PDF ejecutivo
+    integrations/xero/     # Conector Xero: client.py (Protocol + FakeXeroClient), mapper.py, sync.py
     api/main.py            # FastAPI: expone el motor completo por HTTP
     api/auth.py             # Gate de acceso compartido para el deploy público (no-op en dev local)
   sample_data/sample_financials.csv  # 2 clientes de ejemplo, 3 escenarios cada uno
@@ -170,6 +173,18 @@ gastos -- el scope queda explícito en la narrativa del resultado.
 Ambos requieren subir un archivo de facturas (`POST /workspaces/{id}/invoices`)
 además del archivo de financials.
 
+## Conector Xero (simulado)
+
+`app/integrations/xero/` mapea la API real de Xero (`Invoices`, `Journals`,
+`Accounts` -- se descartó el reporte anidado `Reports/ProfitAndLoss` a favor
+de `Journals`+`Accounts`, mucho más simple de aplanar) a nuestros
+`Invoice`/`FinancialStatement`. `FakeXeroClient` devuelve fixtures con esa
+misma forma para un tenant demo (`demo-tenant-xero`) -- no hay OAuth real
+todavía. `client.py`/`mapper.py`/`sync.py` están separados justo para que
+un `RealXeroClient` (cuando haya credenciales) se intercambie sin tocar el
+resto. `POST /workspaces/{id}/xero/sync` (body `{tenant_id, client_id,
+period}`) usa la simulación hoy.
+
 ## Agente conversacional (Fase 1/2)
 
 `app/agents/fpa_agent.py` expone las cinco capacidades del motor (resumen de
@@ -210,6 +225,7 @@ base de datos: cada archivo subido se procesa en memoria bajo un
 | GET  | `/workspaces/{id}/clients/{client_id}/aging?type=ar\|ap&as_of=2026-06-30` | aging AR o AP |
 | GET  | `/workspaces/{id}/clients/{client_id}/cash-flow?starting_balance=...&as_of=...&weeks_ahead=13` | proyección de cash flow |
 | POST | `/workspaces/{id}/chat` | pregunta al agente conversacional |
+| POST | `/workspaces/{id}/xero/sync` | sincroniza un cliente desde Xero (simulado hoy, `FakeXeroClient`) |
 
 Con el servidor corriendo, la documentación interactiva (Swagger) queda
 disponible en `http://127.0.0.1:8000/docs`.

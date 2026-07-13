@@ -205,18 +205,50 @@ cash flow devuelven exactamente los mismos números ya verificados antes
 por curl; el chat muestra el mensaje del usuario y el aviso de "no
 configurado" correctamente ante el 503 real.
 
+### Conector Xero (simulado)
+Con todo lo demás bloqueado esperando al usuario, esta era la única pieza
+grande del backlog avanzable sin depender de él. Investigué la forma real
+de la API de Xero (`developer.xero.com`) antes de simular nada:
+
+- `Invoices`: `Type` (`ACCREC`=AR/`ACCPAY`=AP), `Contact.Name`,
+  `DateString`/`DueDateString`, `Total`/`AmountPaid` — mapea directo a
+  nuestro `Invoice`.
+- Para el P&L, descarté el reporte `Reports/ProfitAndLoss` (estructura
+  Header/Section/Row/Cell muy anidada) a favor de `Journals` (líneas
+  planas) + `Accounts` (para clasificar cada cuenta) — mucho más simple de
+  mapear a nuestro esquema (account, category, amount).
+- Mapeo de `AccountType` de Xero a nuestro `AccountCategory` documentado
+  explícitamente en `mapper.py`, incluyendo el heurístico por nombre para
+  `tax` (Xero no tiene un tipo de cuenta limpio para eso).
+
+`backend/app/integrations/xero/`: `client.py` (`XeroClient` Protocol +
+`FakeXeroClient` con fixtures realistas de un tenant demo),  `mapper.py`
+(transforms puros), `sync.py` (orquestación). Nuevo
+`Workspace.add_statements()` (mismo patrón que `add_invoices()`) para que
+un cliente sincronizado de Xero se sume a un workspace que ya tiene datos
+de CSV. Endpoint `POST /workspaces/{id}/xero/sync`.
+
+Cuando lleguen las credenciales OAuth reales, un `RealXeroClient` que
+implemente el mismo Protocol reemplaza a `FakeXeroClient` sin tocar
+`mapper.py`, `sync.py` ni la ruta de la API. Sin wiring en el frontend
+todavía (no tiene sentido un botón "Conectar Xero" sin OAuth real detrás).
+
+Verificado contra el servidor real: el cliente sincronizado desde el
+tenant demo aparece en `/portfolio` con KPIs exactos (revenue 62,000, tax
+3,100 correctamente clasificado por nombre en vez de caer en opex, net
+income 15,380), y sus facturas quedan disponibles para aging (buckets
+verificados a mano contra las fechas de la fixture).
+
 ### Estado final de la suite de tests
-**98/98 tests backend pasando** (`cd backend && pytest -v`) + typecheck
+**109/109 tests backend pasando** (`cd backend && pytest -v`) + typecheck
 del frontend limpio (`npx tsc -b`).
 
 ### Git
 Todo el trabajo de esta sesión vive en `main` en commits separados por
-feature, incluido el deploy-prep y el agente de cash flow (ya commiteados).
-Pendiente commitear: la pieza de frontend de aging/cash-flow/facturas/chat
-recién terminada. Además, el usuario sigue teniendo pendiente el primer
-`git push` manual (requiere login interactivo por navegador con GitHub que
-no se puede completar desde este entorno) — después de eso el push queda
-desbloqueado para el resto de la sesión.
+feature. El usuario sigue teniendo pendiente el primer `git push` manual
+(requiere login interactivo por navegador con GitHub que no se puede
+completar desde este entorno) — después de eso el push queda desbloqueado
+para el resto de la sesión.
 
 ## Qué falta (backlog, en el orden que fuimos priorizando)
 
@@ -229,11 +261,12 @@ desbloqueado para el resto de la sesión.
    2026-07-13 09:00.
 3. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
    código. Una vez deployado, mandar la URL en vez de pedir clonar el repo.
-4. **Conector Xero** — bloqueado: requiere que el usuario consiga una
-   cuenta de developer y registre una app en Xero (credenciales OAuth).
-   Alternativa evaluada y no descartada: construirlo primero contra un
-   adaptador simulado para no bloquear el avance de código.
-5. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth.
+4. **Conector Xero** — el mapeo de datos ya está construido y probado
+   contra un adaptador simulado (`FakeXeroClient`). Solo falta el
+   `RealXeroClient` con el OAuth real, bloqueado por que el usuario
+   consiga la cuenta de developer y registre la app en Xero.
+5. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth, y sin
+   el trabajo de mapeo simulado que sí se hizo para Xero.
 6. **Pulido visual del frontend** (diseño, responsive, loading states,
    etc.) — es lo único de "frontend" que sigue deliberadamente pospuesto
    para el final; toda la funcionalidad ya está expuesta en la UI.
