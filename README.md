@@ -39,7 +39,9 @@ decisiones técnicas se tomaron y por qué, y qué sigue bloqueado.
 - [x] Agente de aging AR/AP (antigüedad de cuentas por cobrar/pagar)
 - [x] Agente de cash flow (proyección de 13 semanas a partir de facturas
       AR/AP con fecha de vencimiento)
-- [ ] Conector QuickBooks (requiere credenciales OAuth reales)
+- [ ] Conector QuickBooks -- **mapeo de datos construido y probado contra
+      un adaptador simulado**, falta el `RealQuickBooksClient`
+      (credenciales OAuth reales)
 - [ ] Deploy público (Railway + Vercel) -- código listo, falta el signup
       del usuario
 
@@ -61,6 +63,7 @@ backend/
     agents/fpa_agent.py    # Agente conversacional (Claude) sobre las 5 capacidades del motor
     reporting/pdf_report.py # ClientReport (+ forecast/aging/cash flow opcionales) -> PDF ejecutivo
     integrations/xero/     # Conector Xero: client.py (Protocol + FakeXeroClient), mapper.py, sync.py
+    integrations/quickbooks/ # Conector QuickBooks: client.py (Protocol + FakeQuickBooksClient), mapper.py, sync.py
     api/main.py            # FastAPI: expone el motor completo por HTTP
     api/auth.py             # Gate de acceso compartido para el deploy público (no-op en dev local)
   sample_data/sample_financials.csv  # 2 clientes de ejemplo, 3 escenarios cada uno
@@ -185,6 +188,22 @@ un `RealXeroClient` (cuando haya credenciales) se intercambie sin tocar el
 resto. `POST /workspaces/{id}/xero/sync` (body `{tenant_id, client_id,
 period}`) usa la simulación hoy.
 
+## Conector QuickBooks (simulado)
+
+`app/integrations/quickbooks/` mapea la API real de QuickBooks Online
+(`Invoice`, `Bill`, `JournalEntry`, `Account` -- mismo criterio que Xero:
+se descartó el reporte anidado `reports/ProfitAndLoss` a favor de
+`JournalEntry`+`Account`) a nuestros `Invoice`/`FinancialStatement`. A
+diferencia de Xero, QuickBooks separa AR y AP en dos entidades (`Invoice`
+y `Bill`) y su campo `Balance` es el saldo **pendiente**, no lo pagado --
+la conversión `amount_paid = TotalAmt - Balance` vive documentada en
+`mapper.py`. `FakeQuickBooksClient` devuelve fixtures con esa forma para
+un realm demo (`demo-realm-quickbooks`) -- no hay OAuth real todavía.
+Mismo patrón `client.py`/`mapper.py`/`sync.py` que Xero, para que un
+`RealQuickBooksClient` se intercambie sin tocar el resto. `POST
+/workspaces/{id}/quickbooks/sync` (body `{realm_id, client_id, period}`)
+usa la simulación hoy.
+
 ## Agente conversacional (Fase 1/2)
 
 `app/agents/fpa_agent.py` expone las cinco capacidades del motor (resumen de
@@ -226,6 +245,7 @@ base de datos: cada archivo subido se procesa en memoria bajo un
 | GET  | `/workspaces/{id}/clients/{client_id}/cash-flow?starting_balance=...&as_of=...&weeks_ahead=13` | proyección de cash flow |
 | POST | `/workspaces/{id}/chat` | pregunta al agente conversacional |
 | POST | `/workspaces/{id}/xero/sync` | sincroniza un cliente desde Xero (simulado hoy, `FakeXeroClient`) |
+| POST | `/workspaces/{id}/quickbooks/sync` | sincroniza un cliente desde QuickBooks (simulado hoy, `FakeQuickBooksClient`) |
 
 Con el servidor corriendo, la documentación interactiva (Swagger) queda
 disponible en `http://127.0.0.1:8000/docs`.
@@ -236,7 +256,8 @@ disponible en `http://127.0.0.1:8000/docs`.
    Vercel (código listo para ambos, ver `PROGRESS.md`).
 2. Validar tarifas y dolor real con 5-10 asesorías UK, mandando la URL
    deployada en vez de pedir clonar el repo.
-3. Conector Xero (bloqueado por credenciales OAuth reales).
-4. Conector QuickBooks (mismo bloqueo).
+3. Conector Xero (mapeo simulado ya construido, bloqueado por credenciales
+   OAuth reales).
+4. Conector QuickBooks (mapeo simulado ya construido, mismo bloqueo).
 5. Pulido visual del frontend (diseño, responsive, loading states) --
    deliberadamente pospuesto hasta el final del proyecto.

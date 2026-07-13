@@ -239,8 +239,56 @@ tenant demo aparece en `/portfolio` con KPIs exactos (revenue 62,000, tax
 income 15,380), y sus facturas quedan disponibles para aging (buckets
 verificados a mano contra las fechas de la fixture).
 
+### Conector QuickBooks (simulado)
+Misma lógica que el conector Xero: la otra pieza grande del backlog
+avanzable sin depender del usuario. Investigué la forma real de la API de
+QuickBooks Online antes de simular nada, y encontré diferencias reales
+frente a Xero que había que respetar en el mapeo:
+
+- QuickBooks separa AR y AP en **dos entidades distintas** (`Invoice` y
+  `Bill`), a diferencia de Xero que usa un solo `Invoice` con `Type`.
+  `CustomerRef`/`VendorRef` son objetos `{value, name}`.
+- **Diferencia clave con Xero**: el campo `Balance` de QuickBooks es el
+  **saldo pendiente**, no lo pagado (al revés que el `AmountPaid` de
+  Xero). `amount_paid` se calcula como `TotalAmt - Balance`, documentado
+  explícitamente en el mapper porque es el punto más fácil de romper.
+- Fechas (`TxnDate`/`DueDate`) vienen como `"YYYY-MM-DD"` plano, sin el
+  sufijo de hora que tiene Xero.
+- Para el P&L, mismo criterio que Xero: se descartó el reporte anidado
+  `reports/ProfitAndLoss` a favor de `JournalEntry` (líneas planas,
+  `JournalEntryLineDetail.AccountRef` + `Amount`) + `Account` (chart of
+  accounts, campo `AccountType`) para clasificar. `AccountType` usa
+  strings distintos a Xero (`Income`, `Cost of Goods Sold`, `Expense`,
+  `Other Income`, `Other Expense`), con el mismo heurístico por nombre
+  para `tax` que ya usa el mapper de Xero.
+
+`backend/app/integrations/quickbooks/`: `client.py` (`QuickBooksClient`
+Protocol + `FakeQuickBooksClient` con fixtures de un realm demo — 2
+invoices, 1 bill, un journal entry de 6 líneas), `mapper.py`
+(`map_invoices_and_bills()`, `map_journal_entries()`, transforms puros),
+`sync.py` (`sync_client_from_quickbooks()`, misma orquestación que
+`xero/sync.py`). Endpoint `POST /workspaces/{id}/quickbooks/sync`, mismo
+shape que el de Xero, reutilizando `Workspace.add_statements()` /
+`add_invoices()` sin tocar `Workspace`.
+
+Cuando lleguen las credenciales OAuth reales, un `RealQuickBooksClient`
+que implemente el mismo Protocol reemplaza a `FakeQuickBooksClient` sin
+tocar `mapper.py`, `sync.py` ni la ruta de la API. Sin wiring en el
+frontend todavía, mismo motivo que Xero.
+
+11 tests nuevos, con foco específico en la conversión `Balance` →
+`amount_paid` (`test_quickbooks_mapper.py`,
+`test_quickbooks_sync.py`, casos en `test_api.py`). Verificado contra el
+servidor real: el cliente sincronizado desde el realm demo aparece en
+`/portfolio` con los mismos KPIs que la fixture de Xero (revenue 62,000,
+opex 22,700, tax 3,100 correctamente clasificado, net income 15,380 —
+mismos números por diseño, misma fixture base), y en `/aging` el saldo
+pendiente de la factura parcialmente pagada (Cool Cars Ltd: `TotalAmt`
+3,400, `Balance` 1,000) aparece correctamente como 1,000 de saldo abierto
+(no 2,400), confirmando que la conversión no quedó invertida.
+
 ### Estado final de la suite de tests
-**109/109 tests backend pasando** (`cd backend && pytest -v`) + typecheck
+**120/120 tests backend pasando** (`cd backend && pytest -v`) + typecheck
 del frontend limpio (`npx tsc -b`).
 
 ### Git
@@ -265,8 +313,11 @@ para el resto de la sesión.
    contra un adaptador simulado (`FakeXeroClient`). Solo falta el
    `RealXeroClient` con el OAuth real, bloqueado por que el usuario
    consiga la cuenta de developer y registre la app en Xero.
-5. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth, y sin
-   el trabajo de mapeo simulado que sí se hizo para Xero.
+5. **Conector QuickBooks** — el mapeo de datos ya está construido y
+   probado contra un adaptador simulado (`FakeQuickBooksClient`), mismo
+   estado que Xero ahora. Solo falta el `RealQuickBooksClient` con el
+   OAuth real, bloqueado por que el usuario consiga la cuenta de developer
+   y registre la app en Intuit.
 6. **Pulido visual del frontend** (diseño, responsive, loading states,
    etc.) — es lo único de "frontend" que sigue deliberadamente pospuesto
    para el final; toda la funcionalidad ya está expuesta en la UI.

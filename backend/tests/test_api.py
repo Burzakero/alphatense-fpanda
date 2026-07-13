@@ -277,6 +277,30 @@ def test_xero_sync_unknown_workspace_returns_404():
     assert response.status_code == 404
 
 
+def test_quickbooks_sync_returns_summary_and_appears_in_portfolio():
+    workspace_id = _upload_sample()
+    response = client.post(
+        f"/workspaces/{workspace_id}/quickbooks/sync",
+        json={"realm_id": "demo-realm-quickbooks", "client_id": "quickbooks-demo-co", "period": "2026-06"},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["client_id"] == "quickbooks-demo-co"
+    assert body["line_items_loaded"] == 6
+    assert body["invoices_loaded"] == 3
+
+    portfolio = client.get(f"/workspaces/{workspace_id}/portfolio").json()
+    assert any(r["client_id"] == "quickbooks-demo-co" for r in portfolio)
+
+
+def test_quickbooks_sync_unknown_workspace_returns_404():
+    response = client.post(
+        "/workspaces/does-not-exist/quickbooks/sync",
+        json={"realm_id": "demo-realm-quickbooks", "client_id": "quickbooks-demo-co", "period": "2026-06"},
+    )
+    assert response.status_code == 404
+
+
 def test_upload_invoices_rejects_unsupported_file_type():
     workspace_id = _upload_sample()
     response = client.post(
