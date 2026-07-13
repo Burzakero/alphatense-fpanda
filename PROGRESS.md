@@ -77,32 +77,126 @@ Cash flow (el otro agente especializado del backlog) sigue pendiente —
 requiere modelar timing proyectado de cobros/pagos, más complejo que el
 modelo de facturas con fecha de vencimiento que ya cubre aging.
 
+### Agente FP&A conversacional — construido, bloqueado por API key
+Según el plan de producto real, esto era lo que le faltaba a Fase 1 para
+estar realmente completa (no solo el motor determinístico, sino algo con lo
+que el asesor pueda conversar):
+
+- `backend/app/agents/fpa_agent.py`: 4 tools (`get_portfolio_summary`,
+  `get_client_report`, `get_client_forecast`, `get_client_aging`) que
+  envuelven los métodos ya existentes de `Workspace` — el agente nunca
+  calcula un número, solo decide qué tool llamar y narra el resultado.
+  `claude-opus-4-8`, thinking adaptativo, Tool Runner beta del SDK.
+- Endpoint `POST /workspaces/{id}/chat` (stateless — el caller reenvía el
+  `history` que devuelve cada respuesta).
+- `backend/.env.example` committeado; `.env` real (con la key) queda local,
+  ya cubierto por `.gitignore`.
+- **PENDIENTE (2026-07-11)**: falta que el usuario consiga la
+  `ANTHROPIC_API_KEY` en console.anthropic.com y la pase para poder correr
+  la verificación end-to-end real (pregunta real → respuesta real citando
+  cifras del portfolio). Todo lo demás está construido y testeado (los 4
+  tools están probados como funciones puras, sin gastar nada; el endpoint
+  devuelve 503 limpio sin key). Recordatorio programado para el lunes
+  2026-07-13 09:00.
+
+### Agente de cash flow
+Segundo (y último) "agente especializado" del backlog original, después de
+aging AR/AP. Forecast de cash flow a 13 semanas (horizonte estándar en
+FP&A) a partir de las mismas facturas AR/AP que ya usa aging:
+
+- `CashFlowWeek` / `CashFlowForecast` (`app/models/domain.py`).
+- `app/engine/cash_flow.py`: `project_cash_flow()` — bucketing semanal
+  hacia adelante (facturas vencidas van a la semana 0, las que vencen
+  dentro del horizonte van a su semana correspondiente, más allá del
+  horizonte se excluyen) y balance corriente semana a semana.
+- **Decisión de scope deliberada**: solo considera facturas AR/AP con
+  fecha de vencimiento cargada — no mezcla un promedio de opex histórico
+  como salida de caja recurrente, para evitar doble conteo con las
+  facturas de AP que ya representan parte de esos mismos gastos. El
+  narrative del resultado deja esto explícito (gastos no facturados como
+  nómina o alquiler no están incluidos).
+- `Workspace.build_cash_flow_forecast(client_id, starting_balance, as_of, weeks_ahead=13)`
+  — a diferencia de aging, siempre devuelve un resultado (sin facturas =
+  balance plano, es una respuesta válida, no un error).
+- Endpoint `GET /workspaces/{id}/clients/{client_id}/cash-flow?starting_balance=...&as_of=...&weeks_ahead=13`.
+  `starting_balance` es provisto por el asesor a mano — no hay bank feed
+  en el sistema.
+- Quinto tool del agente conversacional: `get_client_cash_flow`.
+- Verificado contra el servidor real con `sample_invoices.csv`: totales
+  semanales y balance corriente calzan exactamente con el cálculo a mano.
+
+### Deploy a Railway (backend) + Vercel (frontend) — código listo, falta que el usuario haga el signup
+Para poder mandarle una URL real a un prospecto en vez de pedirle que
+corra todo en su máquina. Sin dominio propio todavía — arranca con las
+URLs gratuitas de cada plataforma.
+
+- `backend/app/api/auth.py`: gate de acceso compartido (`verify_access_key`)
+  aplicado a nivel de app (`FastAPI(dependencies=[...])`). Si
+  `DEMO_ACCESS_KEY` no está seteada, no hace nada (cero fricción en dev
+  local) — verificado con curl: sin key da 401, con key (por header
+  `X-Demo-Key` o query param `?key=`) da 200.
+- CORS: `ALLOWED_ORIGINS` (env var, coma-separado) se suma a los orígenes
+  locales por defecto, en vez de una lista hardcodeada.
+- `backend/Procfile`: comando de arranque para Railway.
+- Frontend: `API_BASE_URL` ahora lee `VITE_API_BASE_URL` (con fallback a
+  localhost), `AccessGate.tsx` pide el código una vez y lo guarda en
+  `localStorage` (se saltea solo en dev local, detectado por la URL del
+  backend), el link de descarga del PDF manda el `key` como query param
+  porque es un `<a href>` sin headers custom. `frontend/vercel.json` con
+  el rewrite de SPA para que las rutas de React Router no den 404 en
+  Vercel.
+- Verificado: 77/77 tests con el gate desactivado (sin `DEMO_ACCESS_KEY`
+  en el entorno de test), typecheck del frontend limpio, dev local sigue
+  sin pedir el código de acceso, y el gate real probado con un backend
+  temporal (`DEMO_ACCESS_KEY=test-secret-123`) confirmando 401/200 en
+  ambos casos.
+
+**Checklist pendiente para el usuario** (no lo puedo hacer yo — requiere
+login interactivo por navegador, mismo motivo que el `git push`):
+1. **Railway** → New Project → Deploy from GitHub repo → `alphatense-fpanda`,
+   Root Directory = `backend`. Variables de entorno: `DEMO_ACCESS_KEY`
+   (inventar una), `ALLOWED_ORIGINS` (la URL de Vercel, una vez que
+   exista), `ANTHROPIC_API_KEY` (opcional).
+2. **Vercel** → New Project → mismo repo, Root Directory = `frontend`,
+   preset Vite (auto-detectado). Variable de entorno: `VITE_API_BASE_URL`
+   = la URL que dio Railway.
+3. Redeploy en Vercel después de setear `VITE_API_BASE_URL` (el build la
+   necesita presente al compilar, no solo en runtime).
+
 ### Estado final de la suite de tests
-**66/66 tests pasando** (`cd backend && pytest -v`).
+**93/93 tests pasando** (`cd backend && pytest -v`).
 
 ### Git
-Todo el trabajo de esta sesión (frontend, PDF ejecutivo, aging AR/AP)
-quedó commiteado en `main` en commits separados por feature. Pendiente:
-el usuario hace el primer `git push` manualmente (requiere login
+Todo el trabajo de esta sesión (frontend, PDF ejecutivo, aging AR/AP,
+deploy-prep, cash flow) vive en `main` en commits separados por feature —
+salvo el deploy-prep y el agente de cash flow, que quedaron sin commitear
+todavía (se commitean cuando el usuario lo pida explícitamente). Pendiente
+además: el usuario hace el primer `git push` manualmente (requiere login
 interactivo por navegador con GitHub que no se puede completar desde este
 entorno) — después de eso el push queda desbloqueado para el resto de la
 sesión.
 
 ## Qué falta (backlog, en el orden que fuimos priorizando)
 
-1. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
-   código. El frontend actual ya alcanza para hacer estas demos.
-2. **Conector Xero** — bloqueado: requiere que el usuario consiga una
+1. **Deploy real — falta que el usuario haga el signup en Railway y
+   Vercel** (código 100% listo, ver checklist arriba). Es lo que desbloquea
+   el paso de validación con asesorías reales.
+2. **Agente FP&A conversacional — bloqueado por `ANTHROPIC_API_KEY`**
+   (construido y testeado salvo la verificación real, ahora con 5 tools
+   incluyendo cash flow). El usuario dijo que la consigue más adelante;
+   recordatorio programado para el lunes 2026-07-13 09:00.
+3. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
+   código. Una vez deployado, mandar la URL en vez de pedir clonar el repo.
+4. **Conector Xero** — bloqueado: requiere que el usuario consiga una
    cuenta de developer y registre una app en Xero (credenciales OAuth).
    Alternativa evaluada y no descartada: construirlo primero contra un
    adaptador simulado para no bloquear el avance de código.
-3. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth.
-4. **Agente de cash flow** — requiere modelar timing proyectado de
-   cobros/pagos (no solo montos con fecha de vencimiento, que es lo que ya
-   cubre aging). Más trabajo de diseño de datos antes de poder codear.
-5. **Pulido del frontend** (diseño, responsive, loading states, etc.,
-   incluyendo exponer aging en la UI) — deliberadamente pospuesto hasta el
-   final del proyecto.
+5. **Conector QuickBooks** — mismo bloqueo de credenciales OAuth.
+6. **Pulido del frontend** (diseño, responsive, loading states, etc.,
+   incluyendo exponer aging y cash flow en la UI) — deliberadamente
+   pospuesto hasta el final del proyecto. Con esto, los dos agentes
+   especializados del plan original (aging AR/AP y cash flow) ya están
+   completos en el backend.
 
 ## Cómo correr todo hoy
 
