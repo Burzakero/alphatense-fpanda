@@ -71,3 +71,20 @@ def test_build_aging_report_after_adding_invoices():
 def test_build_aging_report_returns_none_without_invoices():
     ws = Workspace.from_file(SAMPLE_CSV)
     assert ws.build_aging_report("beacon-partners", InvoiceType.AR, date(2026, 6, 30)) is None
+
+
+def test_build_cash_flow_forecast_after_adding_invoices():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    ws.add_invoices(load_invoices(SAMPLE_INVOICES_CSV))
+
+    forecast = ws.build_cash_flow_forecast("beacon-partners", starting_balance=10000, as_of=date(2026, 6, 30))
+
+    assert forecast.client_id == "beacon-partners"
+    assert forecast.starting_balance == 10000
+    assert len(forecast.weeks) == 13
+
+
+def test_build_cash_flow_forecast_without_invoices_is_flat():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    forecast = ws.build_cash_flow_forecast("beacon-partners", starting_balance=5000, as_of=date(2026, 6, 30))
+    assert all(w.ending_balance == 5000 for w in forecast.weeks)

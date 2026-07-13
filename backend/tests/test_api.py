@@ -131,6 +131,56 @@ def test_client_report_pdf_unknown_period_returns_404():
     assert response.status_code == 404
 
 
+def test_client_cash_flow_returns_weekly_projection():
+    workspace_id = _upload_sample()
+    _upload_sample_invoices(workspace_id)
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/cash-flow",
+        params={"starting_balance": 10000, "as_of": "2026-06-30", "weeks_ahead": 8},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["client_id"] == "beacon-partners"
+    assert body["starting_balance"] == 10000
+    assert len(body["weeks"]) == 8
+
+
+def test_client_cash_flow_invalid_as_of_returns_400():
+    workspace_id = _upload_sample()
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/cash-flow",
+        params={"starting_balance": 10000, "as_of": "not-a-date"},
+    )
+    assert response.status_code == 400
+
+
+def test_client_cash_flow_unknown_workspace_returns_404():
+    response = client.get(
+        "/workspaces/does-not-exist/clients/beacon-partners/cash-flow",
+        params={"starting_balance": 10000, "as_of": "2026-06-30"},
+    )
+    assert response.status_code == 404
+
+
+def test_chat_without_api_key_returns_503(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    workspace_id = _upload_sample()
+    response = client.post(
+        f"/workspaces/{workspace_id}/chat",
+        json={"message": "How is beacon-partners doing?"},
+    )
+    assert response.status_code == 503
+
+
+def test_chat_unknown_workspace_returns_404():
+    response = client.post(
+        "/workspaces/does-not-exist/chat",
+        json={"message": "How is beacon-partners doing?"},
+    )
+    assert response.status_code == 404
+
+
 def test_client_forecast_returns_best_base_worst_per_period():
     workspace_id = _upload_sample()
     response = client.get(

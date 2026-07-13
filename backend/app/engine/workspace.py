@@ -20,12 +20,14 @@ from datetime import date
 from pathlib import Path
 
 from app.engine.aging import calculate_aging
+from app.engine.cash_flow import project_cash_flow
 from app.engine.forecast import ForecastError, generate_forecast
 from app.engine.kpis import calculate_kpis
 from app.engine.variance import analyze_variance
 from app.ingestion.parser import load_financial_statements
 from app.models.domain import (
     AgingReport,
+    CashFlowForecast,
     FinancialStatement,
     ForecastResult,
     Invoice,
@@ -174,3 +176,15 @@ class Workspace:
         if not matching:
             return None
         return calculate_aging(client_id, matching, invoice_type, as_of)
+
+    def build_cash_flow_forecast(
+        self, client_id: str, starting_balance: float, as_of: date, weeks_ahead: int = 13
+    ) -> CashFlowForecast:
+        """Project cash flow for one client from their AR/AP invoices on file.
+
+        Unlike aging, this always returns a result -- a client with no
+        invoices on file just gets a flat balance for the whole window,
+        which is itself a meaningful answer (no known cash movements).
+        """
+        matching = [inv for inv in self._invoices if inv.client_id == client_id]
+        return project_cash_flow(client_id, matching, starting_balance, as_of, weeks_ahead=weeks_ahead)

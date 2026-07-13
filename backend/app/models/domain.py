@@ -232,3 +232,30 @@ class AgingReport(BaseModel):
     total_outstanding: float
     buckets: list[AgingBucketAmount]
     narrative: str
+
+
+class CashFlowWeek(BaseModel):
+    """One week's projected cash movement, from AR/AP invoices due in that week."""
+
+    week_start: date
+    week_end: date
+    ar_inflows: float
+    ap_outflows: float
+    net_change: float
+    ending_balance: float
+
+
+class CashFlowForecast(BaseModel):
+    """A 13-week-style cash flow projection for one client, built from AR/AP invoices.
+
+    Deliberately scoped to invoices with a due_date already on file --
+    recurring costs that aren't billed as an AP invoice (payroll, rent) are
+    not included, to avoid double-counting against opex actuals. See
+    `narrative` for the caveat spelled out for whoever's reading it.
+    """
+
+    client_id: str
+    as_of: date
+    starting_balance: float
+    weeks: list[CashFlowWeek]
+    narrative: str

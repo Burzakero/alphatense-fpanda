@@ -13,6 +13,8 @@ call directly:
     GET  /workspaces/{workspace_id}/portfolio/forecast?periods_ahead=3
     POST /workspaces/{workspace_id}/invoices                     -- attach an AR/AP invoices file
     GET  /workspaces/{workspace_id}/clients/{client_id}/aging?type=ar&as_of=2026-06-30
+    POST /workspaces/{workspace_id}/chat                          -- ask the conversational FP&A agent
+    GET  /workspaces/{workspace_id}/clients/{client_id}/cash-flow?starting_balance=50000&as_of=2026-06-30&weeks_ahead=13
 
 Workspaces are held in memory for the lifetime of the process, keyed by a
 generated UUID -- there's no database yet (this is the first infrastructure
@@ -24,16 +26,20 @@ can replace `_WORKSPACES` later without changing any route signature.
 
 from __future__ import annotations
 
+import os
 import tempfile
 import uuid
 from pathlib import Path
 
 from datetime import date
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from pydantic import BaseModel
 
+from app.agents.fpa_agent import AgentNotConfiguredError, ask
+from app.api.auth import verify_access_key
 from app.engine.forecast import ForecastError
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
@@ -45,13 +51,17 @@ app = FastAPI(
     title="Alphatense AI -- FP&A Engine API",
     description="HTTP API over the ingestion, KPI, variance, and forecast engine.",
     version="0.1.0",
+    dependencies=[Depends(verify_access_key)],
 )
 
-# Allows the Vite dev server (frontend/) to call this API directly during
-# local development. Tighten to the deployed frontend origin in production.
+# Local dev origins are always allowed; production origins (the deployed
+# frontend) come from ALLOWED_ORIGINS (comma-separated) so this doesn't need
+# a code change per deploy.
+_default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+_extra_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_default_origins + _extra_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -225,6 +235,44 @@ def client_aging(workspace_id: str, client_id: str, type: str, as_of: str) -> di
             detail=f"No {invoice_type.value.upper()} invoices on file for client '{client_id}'",
         )
     return report.model_dump()
+
+
+@app.get("/workspaces/{workspace_id}/clients/{client_id}/cash-flow")
+def client_cash_flow(
+    workspace_id: str, client_id: str, starting_balance: float, as_of: str, weeks_ahead: int = 13
+) -> dict:
+    """Project a client's cash balance week by week from their AR/AP invoices on file."""
+    workspace = _get_workspace(workspace_id)
+
+    try:
+        as_of_date = date.fromisoformat(as_of)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid as_of date '{as_of}' (expected YYYY-MM-DD)") from exc
+
+    forecast = workspace.build_cash_flow_forecast(
+        client_id, starting_balance, as_of_date, weeks_ahead=weeks_ahead
+    )
+    return forecast.model_dump(mode="json")
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[dict] = []
+
+
+@app.post("/workspaces/{workspace_id}/chat")
+def chat(workspace_id: str, request: ChatRequest) -> dict:
+    """Ask the conversational FP&A agent a question about this workspace's portfolio.
+
+    Stateless like the rest of the API: pass back the `history` this
+    endpoint returns on the next call to continue the conversation.
+    """
+    workspace = _get_workspace(workspace_id)
+    try:
+        reply, history = ask(workspace, request.message, request.history)
+    except AgentNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"reply": reply, "history": history}
 
 
 @app.get("/workspaces/{workspace_id}/portfolio/forecast")
