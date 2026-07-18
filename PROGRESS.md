@@ -311,9 +311,14 @@ para el resto de la sesión.
 3. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
    código. Una vez deployado, mandar la URL en vez de pedir clonar el repo.
 4. **Conector Xero** — el mapeo de datos ya está construido y probado
-   contra un adaptador simulado (`FakeXeroClient`). Solo falta el
-   `RealXeroClient` con el OAuth real, bloqueado por que el usuario
-   consiga la cuenta de developer y registre la app en Xero.
+   contra un adaptador simulado (`FakeXeroClient`). **Actualización
+   2026-07-18: app registrada en developer.xero.com** ("Alphatense FP&A",
+   web app, redirect URI `http://localhost:8000/xero/callback`, scopes de
+   accounting read/journals/contacts + `offline_access`). Client ID y
+   Client Secret guardados en `backend/.env` (`XERO_CLIENT_ID` /
+   `XERO_CLIENT_SECRET`, gitignored). Solo falta escribir el
+   `RealXeroClient` que implemente el mismo Protocol que `FakeXeroClient`
+   usando estas credenciales (flujo OAuth2 authorization code + refresh).
 5. **Conector QuickBooks** — el mapeo de datos ya está construido y
    probado contra un adaptador simulado (`FakeQuickBooksClient`), mismo
    estado que Xero ahora. Solo falta el `RealQuickBooksClient` con el
