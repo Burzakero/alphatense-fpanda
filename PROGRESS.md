@@ -91,13 +91,14 @@ que el asesor pueda conversar):
   `history` que devuelve cada respuesta).
 - `backend/.env.example` committeado; `.env` real (con la key) queda local,
   ya cubierto por `.gitignore`.
-- **PENDIENTE (2026-07-11)**: falta que el usuario consiga la
-  `ANTHROPIC_API_KEY` en console.anthropic.com y la pase para poder correr
-  la verificación end-to-end real (pregunta real → respuesta real citando
-  cifras del portfolio). Todo lo demás está construido y testeado (los 4
-  tools están probados como funciones puras, sin gastar nada; el endpoint
-  devuelve 503 limpio sin key). Recordatorio programado para el lunes
-  2026-07-13 09:00.
+- **RESUELTO (2026-07-18)**: el usuario consiguió la `ANTHROPIC_API_KEY` y
+  cargó créditos ($5) en console.anthropic.com. Key guardada en
+  `backend/.env` (gitignored). Verificación end-to-end real hecha contra el
+  servidor corriendo: se subió `sample_financials.csv`, se preguntó por el
+  resumen del portfolio vía `POST /workspaces/{id}/chat`, y la respuesta
+  citó cifras reales (2 clientes, revenue por cliente, variance vs. budget,
+  tendencia mensual) — el agente conversacional queda confirmado como
+  funcional, no solo testeado con mocks.
 
 ### Agente de cash flow
 Segundo (y último) "agente especializado" del backlog original, después de
