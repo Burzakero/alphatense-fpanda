@@ -2,8 +2,7 @@
 Xero client interface + a fake implementation for development without OAuth.
 
 `XeroClient` is the seam: it returns raw JSON shaped exactly like the real
-Xero Accounting API (confirmed against developer.xero.com before writing
-this, not guessed) for the three endpoints the mapper needs. `FakeXeroClient`
+Xero Accounting API for the endpoints the mapper needs. `FakeXeroClient`
 implements it with static fixtures for a demo tenant, so the sync path can
 be built and tested end-to-end before real OAuth credentials exist.
 
@@ -14,19 +13,28 @@ without changing `mapper.py`, `sync.py`, or the API route that calls this.
 Endpoint shapes used here:
 - GET /Invoices -> {"Invoices": [...]}, each with Type (ACCREC/ACCPAY),
   Contact.Name, DateString/DueDateString (ISO), Total/AmountDue/AmountPaid.
-- GET /Journals -> {"Journals": [...]}, each with JournalDate and
-  JournalLines (AccountCode, AccountName, AccountType, NetAmount).
-- GET /Accounts -> {"Accounts": [...]}, each with Code, Name, Type -- used
-  as the canonical source for classifying a journal line's account.
-
-Deliberately skips the nested Reports/ProfitAndLoss endpoint (Header/
-Section/Row/Cell tree) in favor of the flatter Journals+Accounts pair,
-which maps far more directly onto our (account, category, amount) schema.
+- GET /Reports/ProfitAndLoss -> {"Reports": [{"Rows": [...]}]}, a nested
+  Header/Section/Row/SummaryRow tree (see mapper.py for the exact walk).
+  Used instead of the flatter GET /Journals endpoint -- confirmed live
+  (2026-07-18, against a real connected org) that /Journals returns a 401
+  "AuthorizationUnsuccessful" under Xero's newer granular-scopes model, no
+  matter the scope requested. "Manual journals" (accounting.manualjournals.
+  read) is a narrower, different feature (manually-created entries), not
+  the transaction-derived journal lines /Journals returns -- there is no
+  granular scope for that endpoint at all. Reports/ProfitAndLoss, covered
+  by accounting.reports.profitandloss.read, is the confirmed-working path.
+- GET /Accounts -> {"Accounts": [...]}, each with AccountID, Code, Name,
+  Type -- used as the canonical source for classifying a report line's
+  account (joined by AccountID, which is what the report's Cells expose).
 """
 
 from __future__ import annotations
 
 from typing import Protocol
+
+import httpx
+
+from app.integrations.xero import oauth
 
 DEMO_TENANT_ID = "demo-tenant-xero"
 
@@ -36,7 +44,7 @@ class XeroClient(Protocol):
 
     def list_invoices(self, tenant_id: str) -> dict: ...
 
-    def list_journals(self, tenant_id: str) -> dict: ...
+    def get_profit_and_loss_report(self, tenant_id: str) -> dict: ...
 
     def list_accounts(self, tenant_id: str) -> dict: ...
 
@@ -97,46 +105,66 @@ class FakeXeroClient:
             ]
         }
 
-    def list_journals(self, tenant_id: str) -> dict:
+    def get_profit_and_loss_report(self, tenant_id: str) -> dict:
         if tenant_id != DEMO_TENANT_ID:
-            return {"Journals": []}
+            return {"Reports": [{"Rows": []}]}
+
+        def account_row(account_id: str, name: str, amount: float) -> dict:
+            return {
+                "RowType": "Row",
+                "Cells": [
+                    {"Value": name, "Attributes": [{"Value": account_id, "Id": "account"}]},
+                    {"Value": str(amount)},
+                ],
+            }
+
+        def computed_row(label: str, amount: float) -> dict:
+            """No account attribute -- same shape Xero uses for Gross/Net Profit, which
+            aren't real GL accounts. The mapper's skip logic relies on this."""
+            return {"RowType": "Row", "Cells": [{"Value": label}, {"Value": str(amount)}]}
+
         return {
-            "Journals": [
+            "Reports": [
                 {
-                    "JournalID": "journal-demo-2026-06",
-                    "JournalDate": "2026-06-30T00:00:00",
-                    "JournalLines": [
-                        {"AccountCode": "200", "AccountName": "Sales", "AccountType": "SALES", "NetAmount": 62000.0},
+                    "ReportID": "ProfitAndLoss",
+                    "Rows": [
+                        {"RowType": "Header", "Cells": [{"Value": ""}, {"Value": "30 Jun 26"}]},
                         {
-                            "AccountCode": "310",
-                            "AccountName": "Cost of Goods Sold",
-                            "AccountType": "DIRECTCOSTS",
-                            "NetAmount": 21000.0,
+                            "RowType": "Section",
+                            "Title": "Trading Income",
+                            "Rows": [
+                                account_row("acct-200", "Sales", 62000.0),
+                                {"RowType": "SummaryRow", "Cells": [{"Value": "Total Trading Income"}, {"Value": "62000.0"}]},
+                            ],
                         },
                         {
-                            "AccountCode": "400",
-                            "AccountName": "Advertising",
-                            "AccountType": "OVERHEADS",
-                            "NetAmount": 4200.0,
+                            "RowType": "Section",
+                            "Title": "Cost of Sales",
+                            "Rows": [
+                                account_row("acct-310", "Cost of Goods Sold", 21000.0),
+                                {"RowType": "SummaryRow", "Cells": [{"Value": "Total Cost of Sales"}, {"Value": "21000.0"}]},
+                            ],
+                        },
+                        {"RowType": "Section", "Title": "", "Rows": [computed_row("Gross Profit", 41000.0)]},
+                        {
+                            "RowType": "Section",
+                            "Title": "Operating Expenses",
+                            "Rows": [
+                                account_row("acct-400", "Advertising", 4200.0),
+                                account_row("acct-477", "Salaries", 18500.0),
+                                account_row("acct-445", "Income Tax Expense", 3100.0),
+                                {"RowType": "SummaryRow", "Cells": [{"Value": "Total Operating Expenses"}, {"Value": "25800.0"}]},
+                            ],
                         },
                         {
-                            "AccountCode": "477",
-                            "AccountName": "Salaries",
-                            "AccountType": "OVERHEADS",
-                            "NetAmount": 18500.0,
+                            "RowType": "Section",
+                            "Title": "Other Income",
+                            "Rows": [
+                                account_row("acct-270", "Interest Income", 180.0),
+                                {"RowType": "SummaryRow", "Cells": [{"Value": "Total Other Income"}, {"Value": "180.0"}]},
+                            ],
                         },
-                        {
-                            "AccountCode": "270",
-                            "AccountName": "Interest Income",
-                            "AccountType": "OTHERINCOME",
-                            "NetAmount": 180.0,
-                        },
-                        {
-                            "AccountCode": "445",
-                            "AccountName": "Income Tax Expense",
-                            "AccountType": "EXPENSE",
-                            "NetAmount": 3100.0,
-                        },
+                        {"RowType": "Section", "Title": "", "Rows": [computed_row("Net Profit", 15380.0)]},
                     ],
                 }
             ]
@@ -147,11 +175,47 @@ class FakeXeroClient:
             return {"Accounts": []}
         return {
             "Accounts": [
-                {"Code": "200", "Name": "Sales", "Type": "SALES"},
-                {"Code": "310", "Name": "Cost of Goods Sold", "Type": "DIRECTCOSTS"},
-                {"Code": "400", "Name": "Advertising", "Type": "OVERHEADS"},
-                {"Code": "477", "Name": "Salaries", "Type": "OVERHEADS"},
-                {"Code": "270", "Name": "Interest Income", "Type": "OTHERINCOME"},
-                {"Code": "445", "Name": "Income Tax Expense", "Type": "EXPENSE"},
+                {"AccountID": "acct-200", "Code": "200", "Name": "Sales", "Type": "SALES"},
+                {"AccountID": "acct-310", "Code": "310", "Name": "Cost of Goods Sold", "Type": "DIRECTCOSTS"},
+                {"AccountID": "acct-400", "Code": "400", "Name": "Advertising", "Type": "OVERHEADS"},
+                {"AccountID": "acct-477", "Code": "477", "Name": "Salaries", "Type": "OVERHEADS"},
+                {"AccountID": "acct-270", "Code": "270", "Name": "Interest Income", "Type": "OTHERINCOME"},
+                {"AccountID": "acct-445", "Code": "445", "Name": "Income Tax Expense", "Type": "EXPENSE"},
             ]
         }
+
+
+class RealXeroClient:
+    """OAuth2-backed XeroClient, calling the real Xero Accounting API.
+
+    Implements the same Protocol as FakeXeroClient -- swapping this in
+    doesn't change mapper.py, sync.py, or the API route that calls this.
+    Fetches a live access token per call via `oauth.get_valid_access_token`
+    (which refreshes transparently), so this class itself holds no
+    credentials.
+    """
+
+    def __init__(self, http_client: httpx.Client | None = None) -> None:
+        self._http = http_client or httpx.Client(timeout=15.0)
+
+    def list_invoices(self, tenant_id: str) -> dict:
+        return self._get(tenant_id, "Invoices")
+
+    def get_profit_and_loss_report(self, tenant_id: str) -> dict:
+        return self._get(tenant_id, "Reports/ProfitAndLoss")
+
+    def list_accounts(self, tenant_id: str) -> dict:
+        return self._get(tenant_id, "Accounts")
+
+    def _get(self, tenant_id: str, resource: str) -> dict:
+        token = oauth.get_valid_access_token(tenant_id)
+        response = self._http.get(
+            f"{oauth.XERO_API_BASE}/{resource}",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Xero-tenant-id": tenant_id,
+                "Accept": "application/json",
+            },
+        )
+        response.raise_for_status()
+        return response.json()

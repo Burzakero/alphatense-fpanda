@@ -9,7 +9,7 @@ Invoice objects the rest of the engine already knows how to consume.
 from __future__ import annotations
 
 from app.integrations.xero.client import XeroClient
-from app.integrations.xero.mapper import map_invoices, map_journal_lines
+from app.integrations.xero.mapper import map_invoices, map_profit_and_loss
 from app.models.domain import FinancialStatement, Invoice, Scenario
 
 
@@ -26,9 +26,9 @@ def sync_client_from_xero(
     wiring (`Workspace.add_statements()` / `add_invoices()`); this function
     only fetches and maps.
     """
-    raw_journals = client.list_journals(tenant_id)
+    raw_report = client.get_profit_and_loss_report(tenant_id)
     raw_accounts = client.list_accounts(tenant_id)
-    statement = map_journal_lines(raw_journals, raw_accounts, client_id, period, scenario)
+    statement = map_profit_and_loss(raw_report, raw_accounts, client_id, period, scenario)
 
     raw_invoices = client.list_invoices(tenant_id)
     invoices = map_invoices(raw_invoices, client_id)

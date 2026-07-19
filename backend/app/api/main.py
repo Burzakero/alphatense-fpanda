@@ -16,7 +16,9 @@ call directly:
     GET  /workspaces/{workspace_id}/clients/{client_id}/aging?type=ar&as_of=2026-06-30
     POST /workspaces/{workspace_id}/chat                          -- ask the conversational FP&A agent
     GET  /workspaces/{workspace_id}/clients/{client_id}/cash-flow?starting_balance=50000&as_of=2026-06-30&weeks_ahead=13
-    POST /workspaces/{workspace_id}/xero/sync                     -- sync a client's P&L + invoices from Xero (simulated)
+    GET  /xero/connect                                             -- start the Xero OAuth consent flow
+    GET  /xero/callback                                            -- Xero OAuth redirect target (public, no access-key gate)
+    POST /workspaces/{workspace_id}/xero/sync                     -- sync a client's P&L + invoices from Xero (real once connected, else simulated)
     POST /workspaces/{workspace_id}/quickbooks/sync                -- sync a client's P&L + invoices from QuickBooks (simulated)
 
 Workspaces are held in memory for the lifetime of the process, keyed by a
@@ -30,6 +32,7 @@ can replace `_WORKSPACES` later without changing any route signature.
 from __future__ import annotations
 
 import os
+import secrets
 import tempfile
 import uuid
 from pathlib import Path
@@ -38,7 +41,7 @@ from datetime import date
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 
 from app.agents.fpa_agent import AgentNotConfiguredError, ask
@@ -49,7 +52,8 @@ from app.ingestion.invoices import load_invoices
 from app.ingestion.parser import IngestionError
 from app.integrations.quickbooks.client import FakeQuickBooksClient
 from app.integrations.quickbooks.sync import sync_client_from_quickbooks
-from app.integrations.xero.client import FakeXeroClient
+from app.integrations.xero import oauth
+from app.integrations.xero.client import FakeXeroClient, RealXeroClient
 from app.integrations.xero.sync import sync_client_from_xero
 from app.models.domain import InvoiceType
 from app.reporting.pdf_report import generate_client_pdf
@@ -159,18 +163,43 @@ class XeroSyncRequest(BaseModel):
     period: str
 
 
+@app.get("/xero/connect")
+def xero_connect() -> RedirectResponse:
+    """Start the Xero OAuth consent flow -- redirects the advisor to Xero's login/consent screen."""
+    state = secrets.token_urlsafe(16)
+    try:
+        url = oauth.build_authorize_url(state)
+    except oauth.XeroNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return RedirectResponse(url)
+
+
+@app.get("/xero/callback")
+def xero_callback(code: str, state: str) -> dict:
+    """Xero redirects here after consent. Exempted from the access-key gate (see app/api/auth.py)."""
+    try:
+        connected = oauth.exchange_code_for_tokens(code, state)
+    except oauth.XeroStateMismatchError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "connected_tenants": [
+            {"tenant_id": t.tenant_id, "tenant_name": t.tenant_name} for t in connected
+        ]
+    }
+
+
 @app.post("/workspaces/{workspace_id}/xero/sync", status_code=201)
 def xero_sync(workspace_id: str, request: XeroSyncRequest) -> dict:
     """Sync one client's P&L + AR/AP invoices from Xero into this workspace.
 
-    Simulated for now: uses FakeXeroClient (static fixtures for
-    tenant_id="demo-tenant-xero"), not a real OAuth-connected Xero org --
-    see app/integrations/xero/client.py. Swapping in a RealXeroClient later
-    doesn't change this route.
+    Uses RealXeroClient once the tenant has connected via /xero/connect;
+    otherwise falls back to FakeXeroClient (static fixtures for
+    tenant_id="demo-tenant-xero") -- see app/integrations/xero/client.py.
     """
     workspace = _get_workspace(workspace_id)
+    xero_client = RealXeroClient() if oauth.is_connected(request.tenant_id) else FakeXeroClient()
     statement, invoices = sync_client_from_xero(
-        FakeXeroClient(), request.tenant_id, request.client_id, request.period
+        xero_client, request.tenant_id, request.client_id, request.period
     )
     workspace.add_statements([statement])
     workspace.add_invoices(invoices)

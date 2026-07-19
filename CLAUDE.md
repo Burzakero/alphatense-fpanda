@@ -120,9 +120,16 @@ pendiente depende enteramente de acciones externas del usuario:
    completo en `PROGRESS.md`.
 2. **Agente conversacional** — construido y testeado (`fpa_agent.py`,
    `POST /chat`, UI de chat), bloqueado por `ANTHROPIC_API_KEY` real.
-3. **Conector Xero** — mapeo simulado completo y verificado
-   (`FakeXeroClient`). Falta `RealXeroClient` con OAuth real (el usuario
-   debe registrar la app en developer.xero.com).
+3. **Conector Xero — COMPLETO, verificado en vivo (2026-07-18)**.
+   `RealXeroClient` con OAuth2 real funcionando end-to-end contra la org
+   trial "Alphatense FP&A" (login, consentimiento, Invoices/Accounts/
+   Contacts/P&L Report todos reales). Nota: `GET /Journals` resultó
+   inaccesible bajo el modelo de scopes granulares de Xero (401 confirmado,
+   no hay scope que lo cubra) — el P&L se construye vía
+   `Reports/ProfitAndLoss` en su lugar (ver `PROGRESS.md` para el detalle).
+   Pendiente real, no de código: la org trial no tiene transacciones
+   cargadas, así que los números del P&L real quedan sin verificar hasta
+   validar con un cliente real.
 4. **Conector QuickBooks** — mismo estado que Xero (`FakeQuickBooksClient`,
    completo y verificado). Falta `RealQuickBooksClient` con OAuth real
    (registro en Intuit developer).

@@ -240,6 +240,48 @@ tenant demo aparece en `/portfolio` con KPIs exactos (revenue 62,000, tax
 income 15,380), y sus facturas quedan disponibles para aging (buckets
 verificados a mano contra las fechas de la fixture).
 
+### RealXeroClient — OAuth2 real, verificado en vivo (2026-07-18)
+Con `XERO_CLIENT_ID`/`XERO_CLIENT_SECRET` ya obtenidos, se construyó el flujo
+OAuth2 completo y un `RealXeroClient` que implementa el mismo `XeroClient`
+Protocol que `FakeXeroClient` — cero cambios en la ruta de la API por el
+swap:
+
+- `backend/app/integrations/xero/oauth.py` (nuevo): `build_authorize_url()` /
+  `exchange_code_for_tokens()` / `refresh_access_token()` /
+  `get_valid_access_token()`, tokens en memoria (`_TOKENS`, mismo patrón que
+  `_WORKSPACES`), refresh automático 60s antes de expirar.
+- `GET /xero/connect` y `GET /xero/callback` (este último exceptuado del
+  gate de acceso — Xero no puede mandar nuestro header/query param custom).
+- `RealXeroClient` en `client.py`: pide un token fresco por llamada, headers
+  `Authorization: Bearer` + `Xero-tenant-id`.
+- Verificado en vivo contra la organización trial real "Alphatense FP&A" en
+  el navegador: login → consentimiento OAuth → callback → `Invoices`,
+  `Accounts` y `Contacts` devuelven 200 con datos reales.
+
+**Hallazgo confirmado (no una suposición)**: `GET /Journals` devuelve 401
+`AuthorizationUnsuccessful` bajo el modelo de scopes granulares de Xero
+(apps registradas después de 2026-03-02) — no existe ningún scope granular
+que lo habilite. `accounting.manualjournals.read` es una función distinta
+(asientos manuales), confirmado que tampoco lo desbloquea. Se reemplazó la
+construcción del P&L: `mapper.map_journal_lines` (JournalLines planas) →
+`mapper.map_profit_and_loss` (árbol `Reports/ProfitAndLoss`
+Header/Section/Row/SummaryRow, investigado contra docs/ejemplos de Xero ya
+que la org trial no tiene transacciones reales para observar la forma
+poblada). El filtro de filas reales usa la presencia de un atributo
+`Id: "account"` en la celda — así se descartan SummaryRows y las filas
+calculadas de Gross/Net Profit sin necesidad de hardcodear títulos de
+sección (varían por org/locale). `_SCOPES` en `oauth.py` perdió
+`accounting.manualjournals.read` (confirmado inútil).
+
+Verificado en vivo end-to-end tras el fix: reconexión OAuth (un scope menos,
+mismo consentimiento) + `POST /workspaces/{id}/xero/sync` contra el tenant
+real devuelve `201` (antes: `500` por el 401 de Journals). `line_items_loaded`
+e `invoices_loaded` salen en `0` porque la org trial no tiene transacciones
+cargadas todavía — eso es esperado, no un bug: prueba que el pipeline es
+correcto estructuralmente (OAuth real, llamada real a Reports API, parseo
+real), no que los números calcen contra datos conocidos, porque no hay datos
+reales en esta org para comparar. 132/132 tests backend pasando.
+
 ### Conector QuickBooks (simulado)
 Misma lógica que el conector Xero: la otra pieza grande del backlog
 avanzable sin depender del usuario. Investigué la forma real de la API de
@@ -289,8 +331,9 @@ pendiente de la factura parcialmente pagada (Cool Cars Ltd: `TotalAmt`
 (no 2,400), confirmando que la conversión no quedó invertida.
 
 ### Estado final de la suite de tests
-**120/120 tests backend pasando** (`cd backend && pytest -v`) + typecheck
-del frontend limpio (`npx tsc -b`).
+**132/132 tests backend pasando** (`cd backend && pytest -v`, actualizado
+2026-07-18 tras el fix de Xero) + typecheck del frontend limpio
+(`npx tsc -b`).
 
 ### Git
 Todo el trabajo de esta sesión vive en `main` en commits separados por
@@ -310,15 +353,14 @@ para el resto de la sesión.
    2026-07-13 09:00.
 3. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
    código. Una vez deployado, mandar la URL en vez de pedir clonar el repo.
-4. **Conector Xero** — el mapeo de datos ya está construido y probado
-   contra un adaptador simulado (`FakeXeroClient`). **Actualización
-   2026-07-18: app registrada en developer.xero.com** ("Alphatense FP&A",
-   web app, redirect URI `http://localhost:8000/xero/callback`, scopes de
-   accounting read/journals/contacts + `offline_access`). Client ID y
-   Client Secret guardados en `backend/.env` (`XERO_CLIENT_ID` /
-   `XERO_CLIENT_SECRET`, gitignored). Solo falta escribir el
-   `RealXeroClient` que implemente el mismo Protocol que `FakeXeroClient`
-   usando estas credenciales (flujo OAuth2 authorization code + refresh).
+4. **Conector Xero — COMPLETO y verificado en vivo (2026-07-18)**. OAuth2
+   real + `RealXeroClient` construidos, y el hallazgo de que `/Journals` no
+   es accesible bajo scopes granulares ya está resuelto (P&L vía
+   `Reports/ProfitAndLoss`, ver sección de arriba). Pendiente real: la org
+   trial conectada no tiene transacciones cargadas, así que la
+   correctitud numérica del P&L real queda sin verificar hasta que haya un
+   cliente real con datos — la estructura del pipeline sí está probada
+   end-to-end.
 5. **Conector QuickBooks** — el mapeo de datos ya está construido y
    probado contra un adaptador simulado (`FakeQuickBooksClient`), mismo
    estado que Xero ahora. Solo falta el `RealQuickBooksClient` con el

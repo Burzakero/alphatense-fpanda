@@ -72,38 +72,69 @@ def _category_for(account_type: str, account_name: str) -> AccountCategory:
     return _ACCOUNT_TYPE_TO_CATEGORY.get(account_type, AccountCategory.OPEX)
 
 
-def map_journal_lines(
-    raw_journals: dict,
+def _account_id_from_row(row: dict) -> str | None:
+    """Return the account GUID a report Row references, or None if it's not a real account.
+
+    Xero marks a genuine GL-account line with an `Id: "account"` attribute on
+    its first Cell. SummaryRows (subtotals) and the computed Gross/Net Profit
+    rows have no such attribute -- that absence is what lets us skip them
+    without special-casing section titles, which vary by org/locale.
+    """
+    cells = row.get("Cells", [])
+    if not cells:
+        return None
+    for attribute in cells[0].get("Attributes", []):
+        if attribute.get("Id") == "account":
+            return attribute.get("Value")
+    return None
+
+
+def _iter_report_account_rows(rows: list[dict]):
+    """Recursively walk a Reports/ProfitAndLoss Rows tree, yielding only real account Rows."""
+    for row in rows:
+        row_type = row.get("RowType")
+        if row_type == "Section":
+            yield from _iter_report_account_rows(row.get("Rows", []))
+        elif row_type == "Row" and _account_id_from_row(row) is not None:
+            yield row
+
+
+def map_profit_and_loss(
+    raw_report: dict,
     raw_accounts: dict,
     client_id: str,
     period: str,
     scenario: Scenario = Scenario.ACTUAL,
 ) -> FinancialStatement:
-    """Map `GET /Journals` + `GET /Accounts` into one FinancialStatement.
+    """Map `GET /Reports/ProfitAndLoss` + `GET /Accounts` into one FinancialStatement.
 
     `raw_accounts` is the canonical source for each account's category
-    (looked up by AccountCode) rather than trusting each journal line's own
-    AccountType, since a real chart of accounts is the source of truth an
-    advisor would actually maintain and correct over time.
+    (looked up by AccountID, which is what the report's Cells expose) rather
+    than trusting the report row's own label, since a real chart of accounts
+    is the source of truth an advisor would actually maintain and correct
+    over time.
     """
-    account_types = {acc["Code"]: acc["Type"] for acc in raw_accounts.get("Accounts", [])}
-    account_names = {acc["Code"]: acc["Name"] for acc in raw_accounts.get("Accounts", [])}
+    accounts_by_id = {acc["AccountID"]: acc for acc in raw_accounts.get("Accounts", [])}
+
+    reports = raw_report.get("Reports", [])
+    rows = reports[0].get("Rows", []) if reports else []
 
     line_items: list[LineItem] = []
-    for journal in raw_journals.get("Journals", []):
-        for line in journal.get("JournalLines", []):
-            code = line["AccountCode"]
-            account_name = account_names.get(code, line.get("AccountName", code))
-            account_type = account_types.get(code, line.get("AccountType", ""))
-            line_items.append(
-                LineItem(
-                    client_id=client_id,
-                    period=period,
-                    scenario=scenario,
-                    account=account_name,
-                    category=_category_for(account_type, account_name),
-                    amount=abs(float(line["NetAmount"])),
-                )
+    for row in _iter_report_account_rows(rows):
+        cells = row["Cells"]
+        account_id = _account_id_from_row(row)
+        account = accounts_by_id.get(account_id, {})
+        account_name = account.get("Name", cells[0]["Value"])
+        account_type = account.get("Type", "")
+        line_items.append(
+            LineItem(
+                client_id=client_id,
+                period=period,
+                scenario=scenario,
+                account=account_name,
+                category=_category_for(account_type, account_name),
+                amount=abs(float(cells[1]["Value"])),
             )
+        )
 
     return FinancialStatement(client_id=client_id, period=period, scenario=scenario, line_items=line_items)
