@@ -85,6 +85,16 @@ class Workspace:
     def client_ids(self) -> list[str]:
         return sorted({s.client_id for s in self._statements})
 
+    @property
+    def statements(self) -> list[FinancialStatement]:
+        """All P&L statements on file, for persistence -- see app/db/repository.py."""
+        return list(self._statements)
+
+    @property
+    def invoices(self) -> list[Invoice]:
+        """All AR/AP invoices on file, for persistence -- see app/db/repository.py."""
+        return list(self._invoices)
+
     def _statement(self, client_id: str, period: str, scenario: Scenario) -> FinancialStatement | None:
         return self._by_key.get((client_id, period, scenario))
 

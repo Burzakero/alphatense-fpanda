@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { API_BASE_URL, ApiError, getAccessKey, getClientForecast, getClientReport } from '../api/client'
+import { API_BASE_URL, ApiError, getClientForecast, getClientReport, getToken } from '../api/client'
 import type { ClientReport, ForecastResult } from '../types'
 import { KpiCard } from '../components/KpiCard'
 import { VarianceTable } from '../components/VarianceTable'
@@ -52,7 +52,7 @@ export function ClientDetailPage() {
           <ButtonLink
             size="sm"
             href={`${API_BASE_URL}/workspaces/${workspaceId}/clients/${clientId}/report/pdf?${new URLSearchParams(
-              { period, ...(getAccessKey() ? { key: getAccessKey()! } : {}) },
+              { period, ...(getToken() ? { token: getToken()! } : {}) },
             )}`}
           >
             Descargar informe PDF

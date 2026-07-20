@@ -1,38 +1,43 @@
 """
-Shared-secret access gate for the demo deployment.
+Per-advisor session auth.
 
-Not a real auth system (no per-user identity) -- just enough to stop a
-public URL from being wide open to anyone who finds it, since the chat
-endpoint (app/agents/fpa_agent.py) calls a paid API. Controlled entirely by
-whether DEMO_ACCESS_KEY is set: unset locally (no friction for
-development), set in production (Railway) to actually gate the deployment.
+Each advisory firm has its own account (email + password); requests carry
+an opaque bearer token issued at signup/login (see app/db/repository.py for
+hashing/session mechanics -- tokens are stored as a SHA-256 hash, 30-day
+fixed expiry, no JWT). `get_current_advisor` is applied per-route (not as a
+blanket app-level dependency) so /health, /auth/signup, /auth/login, and
+Xero's OAuth callback (a third-party redirect that can't attach our
+Authorization header) stay open without needing an exemption list.
 
-Accepts the key via the X-Demo-Key header (used by the frontend's fetch
-calls) or a `key` query param (needed for the PDF download link, which is
-a plain <a href> with no custom headers).
-
-`_PUBLIC_PATHS` exempts routes that a third party redirects to directly and
-can't attach our header/query param to -- currently just Xero's OAuth
-callback (app/integrations/xero/oauth.py).
+The token is also accepted via a `token` query param, alongside the usual
+`Authorization: Bearer` header -- needed for the PDF report download link
+(see app/api/main.py's client_report_pdf), which the frontend renders as a
+plain `<a href>` with no way to attach a custom header.
 """
 
 from __future__ import annotations
 
-import os
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy.orm import Session
 
-from fastapi import HTTPException, Request
+from app.db.database import get_session
+from app.db.models import AdvisorAccount
+from app.db.repository import get_advisor_by_token
 
-_PUBLIC_PATHS = {"/xero/callback"}
+
+def _extract_token(request: Request) -> str:
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        return auth_header[7:].strip()
+    return request.query_params.get("token", "")
 
 
-def verify_access_key(request: Request) -> None:
-    if request.url.path in _PUBLIC_PATHS:
-        return
+def get_current_advisor(request: Request, db: Session = Depends(get_session)) -> AdvisorAccount:
+    token = _extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Missing bearer token")
 
-    expected = os.getenv("DEMO_ACCESS_KEY")
-    if not expected:
-        return
-
-    provided = request.headers.get("x-demo-key") or request.query_params.get("key")
-    if provided != expected:
-        raise HTTPException(status_code=401, detail="Missing or invalid access key")
+    advisor = get_advisor_by_token(db, token)
+    if advisor is None:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return advisor

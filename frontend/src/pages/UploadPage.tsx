@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ApiError, createWorkspace } from '../api/client'
 import { Button } from '../components/ui/Button'
+import { PageHeading } from '../components/ui/PageHeading'
 
 export function UploadPage() {
   const [file, setFile] = useState<File | null>(null)
@@ -26,16 +27,11 @@ export function UploadPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center gap-6 px-4">
-      <div className="flex flex-col items-center text-center">
-        <img src="/logo-mark-192.png" alt="" className="mb-3 h-16 w-16" />
-        <h1 translate="no" className="notranslate text-2xl font-semibold text-slate-900 dark:text-slate-50">
-          Alphatense FP&A
-        </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Subí el CSV/Excel de tu portfolio para ver KPIs, variance analysis y forecast.
-        </p>
-      </div>
+    <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-16">
+      <PageHeading
+        title="Subí tu portfolio"
+        subtitle="Subí el CSV/Excel de tu portfolio para ver KPIs, variance analysis y forecast."
+      />
 
       <form
         onSubmit={handleSubmit}

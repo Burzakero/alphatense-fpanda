@@ -10,18 +10,24 @@ import type {
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000'
 
-const ACCESS_KEY_STORAGE = 'alphatense_access_key'
+const TOKEN_STORAGE = 'alphatense_token'
 
-export function getAccessKey(): string | null {
-  return localStorage.getItem(ACCESS_KEY_STORAGE)
+export interface Advisor {
+  advisor_id: string
+  name: string
+  email: string
 }
 
-export function setAccessKey(key: string): void {
-  localStorage.setItem(ACCESS_KEY_STORAGE, key)
+export function getToken(): string | null {
+  return localStorage.getItem(TOKEN_STORAGE)
 }
 
-function clearAccessKey(): void {
-  localStorage.removeItem(ACCESS_KEY_STORAGE)
+export function setToken(token: string): void {
+  localStorage.setItem(TOKEN_STORAGE, token)
+}
+
+export function clearToken(): void {
+  localStorage.removeItem(TOKEN_STORAGE)
 }
 
 export class ApiError extends Error {
@@ -34,18 +40,50 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const accessKey = getAccessKey()
+  const token = getToken()
   const headers = new Headers(init?.headers)
-  if (accessKey) headers.set('X-Demo-Key', accessKey)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
 
   const res = await fetch(`${API_BASE_URL}${path}`, { ...init, headers })
   if (!res.ok) {
-    if (res.status === 401) clearAccessKey()
+    if (res.status === 401) clearToken()
     const body = await res.json().catch(() => null)
     const message = body?.detail ?? `Request failed with status ${res.status}`
     throw new ApiError(res.status, message)
   }
   return res.json() as Promise<T>
+}
+
+export async function signup(name: string, email: string, password: string): Promise<Advisor> {
+  const result = await request<{ token: string; advisor: Advisor }>('/auth/signup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password }),
+  })
+  setToken(result.token)
+  return result.advisor
+}
+
+export async function login(email: string, password: string): Promise<Advisor> {
+  const result = await request<{ token: string; advisor: Advisor }>('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  setToken(result.token)
+  return result.advisor
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await request('/auth/logout', { method: 'POST' })
+  } finally {
+    clearToken()
+  }
+}
+
+export function getMe(): Promise<{ advisor: Advisor; workspace_ids: string[] }> {
+  return request('/auth/me')
 }
 
 export function createWorkspace(file: File): Promise<CreateWorkspaceResponse> {

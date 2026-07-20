@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -5,6 +6,16 @@ from fastapi.testclient import TestClient
 from app.api.main import app
 
 client = TestClient(app)
+
+# Every workspace route now requires an authenticated advisor -- sign one up
+# once and default every request this shared client makes to carry its
+# token, so the rest of this file's test bodies stay unchanged.
+_signup = client.post(
+    "/auth/signup",
+    json={"name": "Test Advisor", "email": f"test-{uuid.uuid4()}@example.com", "password": "testpassword123"},
+)
+assert _signup.status_code == 201, _signup.text
+client.headers["Authorization"] = f"Bearer {_signup.json()['token']}"
 
 SAMPLE_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_financials.csv"
 SAMPLE_INVOICES_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_invoices.csv"

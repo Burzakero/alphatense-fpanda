@@ -1,0 +1,80 @@
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ApiError, getMe, signup } from '../api/client'
+import { Button } from '../components/ui/Button'
+import { Card } from '../components/ui/Card'
+import { TextInput } from '../components/ui/TextInput'
+
+export function SignupPage() {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setLoading(true)
+    try {
+      await signup(name, email, password)
+      const me = await getMe()
+      const target = me.workspace_ids[0]
+      navigate(target ? `/portfolio/${target}` : '/upload')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'No se pudo crear la cuenta.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-4 px-4">
+      <img src="/logo-mark-192.png" alt="Alphatense" className="h-16 w-16" />
+      <h1 translate="no" className="notranslate text-lg font-semibold text-slate-900 dark:text-slate-50">
+        Crear cuenta
+      </h1>
+      <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+        Una cuenta por asesoría — vas a ver solo tu propia cartera de clientes.
+      </p>
+      <Card className="w-full p-6">
+        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+          <TextInput
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Nombre de la asesoría"
+            required
+            autoFocus
+          />
+          <TextInput
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email"
+            required
+          />
+          <TextInput
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Contraseña (mínimo 8 caracteres)"
+            minLength={8}
+            required
+          />
+          <Button type="submit" disabled={loading} className="mt-1">
+            {loading ? 'Creando cuenta…' : 'Registrarse'}
+          </Button>
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </form>
+      </Card>
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        ¿Ya tenés cuenta?{' '}
+        <Link to="/login" className="text-brand-600 hover:underline dark:text-brand-400">
+          Iniciar sesión
+        </Link>
+      </p>
+    </div>
+  )
+}
