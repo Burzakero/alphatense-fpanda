@@ -12,6 +12,9 @@ import {
 import { ApiError, getClientCashFlow } from '../api/client'
 import type { CashFlowForecast } from '../types'
 import { formatCurrency } from '../utils/format'
+import { Button } from './ui/Button'
+import { TextInput } from './ui/TextInput'
+import { Card } from './ui/Card'
 
 export function CashFlowChart({ workspaceId, clientId }: { workspaceId: string; clientId: string }) {
   const [asOf, setAsOf] = useState('')
@@ -43,47 +46,43 @@ export function CashFlowChart({ workspaceId, clientId }: { workspaceId: string; 
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
         <label className="text-sm text-slate-600 dark:text-slate-300">
           Fecha de partida
-          <input
+          <TextInput
             type="date"
             value={asOf}
             onChange={(e) => setAsOf(e.target.value)}
-            className="mt-1 block rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
+            className="mt-1 block"
           />
         </label>
         <label className="text-sm text-slate-600 dark:text-slate-300">
           Balance inicial
-          <input
+          <TextInput
             type="number"
             value={startingBalance}
             onChange={(e) => setStartingBalance(e.target.value)}
             placeholder="10000"
-            className="mt-1 block w-32 rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
+            className="mt-1 block w-32"
           />
         </label>
-        <button
-          type="submit"
-          disabled={!asOf || !startingBalance || loading}
-          className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-        >
+        <Button type="submit" size="sm" disabled={!asOf || !startingBalance || loading}>
           {loading ? 'Proyectando…' : 'Ver cash flow'}
-        </button>
+        </Button>
       </form>
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {forecast && (
         <div className="mt-4">
-          <div className="h-64 w-full rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+          <Card className="h-64 w-full p-2">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
                 <XAxis dataKey="week" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(v) => formatCurrency(v)} tick={{ fontSize: 11 }} width={90} />
                 <Tooltip formatter={(v) => formatCurrency(Number(v))} />
-                <Line type="monotone" dataKey="balance" name="Balance" stroke="#2563eb" strokeWidth={2} />
+                <Line type="monotone" dataKey="balance" name="Balance" stroke="#1b69b0" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
-          </div>
+          </Card>
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{forecast.narrative}</p>
         </div>
       )}

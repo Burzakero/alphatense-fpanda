@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { ApiError, uploadInvoices } from '../api/client'
+import { Button } from './ui/Button'
 
 export function InvoiceUpload({ workspaceId }: { workspaceId: string }) {
   const [file, setFile] = useState<File | null>(null)
@@ -40,13 +41,9 @@ export function InvoiceUpload({ workspaceId }: { workspaceId: string }) {
         onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         className="text-sm text-slate-600 dark:text-slate-300"
       />
-      <button
-        type="submit"
-        disabled={!file || loading}
-        className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-      >
+      <Button type="submit" size="sm" disabled={!file || loading}>
         {loading ? 'Subiendo…' : 'Subir facturas'}
-      </button>
+      </Button>
       {status && <p className="text-sm text-emerald-600 dark:text-emerald-400">{status}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
     </form>

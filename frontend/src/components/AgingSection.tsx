@@ -3,6 +3,9 @@ import type { FormEvent } from 'react'
 import { ApiError, getClientAging } from '../api/client'
 import type { AgingReport } from '../types'
 import { formatCurrency } from '../utils/format'
+import { Button } from './ui/Button'
+import { TextInput } from './ui/TextInput'
+import { tableShell, tableHead, tableHeadCell, tableBody, tableCell, tableCellStrong } from './ui/table'
 
 function AgingTable({ report }: { report: AgingReport }) {
   return (
@@ -10,21 +13,21 @@ function AgingTable({ report }: { report: AgingReport }) {
       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
         {report.type.toUpperCase()} · Total: {formatCurrency(report.total_outstanding)}
       </h4>
-      <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+      <div className={`mt-2 ${tableShell}`}>
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+          <thead className={tableHead}>
             <tr>
-              <th className="px-3 py-2 font-medium">Bucket</th>
-              <th className="px-3 py-2 font-medium">Monto</th>
-              <th className="px-3 py-2 font-medium">Facturas</th>
+              <th className={tableHeadCell}>Bucket</th>
+              <th className={tableHeadCell}>Monto</th>
+              <th className={tableHeadCell}>Facturas</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          <tbody className={tableBody}>
             {report.buckets.map((b) => (
               <tr key={b.bucket}>
-                <td className="px-3 py-2 text-slate-800 dark:text-slate-200">{b.bucket}</td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{formatCurrency(b.amount)}</td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{b.invoice_count}</td>
+                <td className={tableCellStrong}>{b.bucket}</td>
+                <td className={tableCell}>{formatCurrency(b.amount)}</td>
+                <td className={tableCell}>{b.invoice_count}</td>
               </tr>
             ))}
           </tbody>
@@ -71,20 +74,11 @@ export function AgingSection({ workspaceId, clientId }: { workspaceId: string; c
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
         <label className="text-sm text-slate-600 dark:text-slate-300">
           Fecha de corte
-          <input
-            type="date"
-            value={asOf}
-            onChange={(e) => setAsOf(e.target.value)}
-            className="mt-1 block rounded-md border border-slate-300 px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
-          />
+          <TextInput type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="mt-1 block" />
         </label>
-        <button
-          type="submit"
-          disabled={!asOf || loading}
-          className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40"
-        >
+        <Button type="submit" size="sm" disabled={!asOf || loading}>
           {loading ? 'Calculando…' : 'Ver aging'}
-        </button>
+        </Button>
       </form>
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}

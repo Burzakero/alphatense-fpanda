@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { API_BASE_URL, ApiError, getAccessKey, getClientForecast, getClientReport } from '../api/client'
 import type { ClientReport, ForecastResult } from '../types'
 import { KpiCard } from '../components/KpiCard'
@@ -7,6 +7,8 @@ import { VarianceTable } from '../components/VarianceTable'
 import { ForecastChart } from '../components/ForecastChart'
 import { AgingSection } from '../components/AgingSection'
 import { CashFlowChart } from '../components/CashFlowChart'
+import { BackLink } from '../components/ui/BackLink'
+import { ButtonLink } from '../components/ui/Button'
 
 export function ClientDetailPage() {
   const { workspaceId, clientId } = useParams<{ workspaceId: string; clientId: string }>()
@@ -41,22 +43,20 @@ export function ClientDetailPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <Link to={`/portfolio/${workspaceId}`} className="text-sm text-indigo-600 hover:underline">
-        ← Volver al portfolio
-      </Link>
+      <BackLink to={`/portfolio/${workspaceId}`}>Volver al portfolio</BackLink>
       <div className="mt-2 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">
           {clientId} <span className="text-slate-400">· {period}</span>
         </h1>
         {workspaceId && clientId && period && (
-          <a
+          <ButtonLink
+            size="sm"
             href={`${API_BASE_URL}/workspaces/${workspaceId}/clients/${clientId}/report/pdf?${new URLSearchParams(
               { period, ...(getAccessKey() ? { key: getAccessKey()! } : {}) },
             )}`}
-            className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
           >
             Descargar informe PDF
-          </a>
+          </ButtonLink>
         )}
       </div>
 

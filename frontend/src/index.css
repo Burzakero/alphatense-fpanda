@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@theme {
+  /* Brand palette sampled from the Alphatense logo (circuit-board "A" mark). */
+  --color-brand-50: #eaf3fb;
+  --color-brand-100: #d3e7f7;
+  --color-brand-200: #a8cfef;
+  --color-brand-300: #78b4e4;
+  --color-brand-400: #4a99d8;
+  --color-brand-500: #2680c7;
+  --color-brand-600: #1b69b0;
+  --color-brand-700: #14528c;
+  --color-brand-800: #0f3e6c;
+  --color-brand-900: #0b2e52;
+  --color-brand-950: #071f38;
+
+  --color-accent-400: #3fc1f0;
+  --color-accent-500: #1eaae6;
+  --color-accent-600: #0e8fc7;
+}
+
 :root {
   color-scheme: light dark;
 }

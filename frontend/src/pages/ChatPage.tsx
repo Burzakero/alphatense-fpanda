@@ -1,7 +1,11 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { Send } from 'lucide-react'
 import { ApiError, chat } from '../api/client'
+import { BackLink } from '../components/ui/BackLink'
+import { Button } from '../components/ui/Button'
+import { TextInput } from '../components/ui/TextInput'
 
 interface DisplayMessage {
   role: 'user' | 'assistant'
@@ -42,9 +46,7 @@ export function ChatPage() {
 
   return (
     <div className="mx-auto flex h-screen max-w-3xl flex-col px-4 py-8">
-      <Link to={`/portfolio/${workspaceId}`} className="text-sm text-indigo-600 hover:underline">
-        ← Volver al portfolio
-      </Link>
+      <BackLink to={`/portfolio/${workspaceId}`}>Volver al portfolio</BackLink>
       <h1 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Analista FP&A</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         Preguntale en lenguaje natural por KPIs, variance, forecast, aging o cash flow de cualquier cliente.
@@ -56,7 +58,7 @@ export function ChatPage() {
             key={i}
             className={`max-w-[80%] rounded-lg px-4 py-2 text-sm ${
               m.role === 'user'
-                ? 'ml-auto bg-indigo-600 text-white'
+                ? 'ml-auto bg-brand-600 text-white'
                 : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100'
             }`}
           >
@@ -69,20 +71,17 @@ export function ChatPage() {
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
-        <input
+        <TextInput
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="¿Cómo viene Beacon Partners este mes?"
-          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"
+          className="flex-1"
         />
-        <button
-          type="submit"
-          disabled={!input.trim() || loading}
-          className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-        >
+        <Button type="submit" disabled={!input.trim() || loading}>
+          <Send className="h-4 w-4" />
           Enviar
-        </button>
+        </Button>
       </form>
     </div>
   )

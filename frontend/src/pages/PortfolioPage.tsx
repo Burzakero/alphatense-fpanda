@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { MessageCircle } from 'lucide-react'
 import { ApiError, getPortfolioReport } from '../api/client'
 import type { ClientReport } from '../types'
 import { KpiCard } from '../components/KpiCard'
 import { SeverityBadge } from '../components/SeverityBadge'
 import { InvoiceUpload } from '../components/InvoiceUpload'
+import { PageHeading } from '../components/ui/PageHeading'
 
 export function PortfolioPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -28,18 +30,19 @@ export function PortfolioPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">Portfolio</h1>
-        <Link
-          to={`/portfolio/${workspaceId}/chat`}
-          className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
-        >
-          💬 Preguntarle al analista IA
-        </Link>
-      </div>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        {reports.length} reporte{reports.length === 1 ? '' : 's'} cliente/periodo encontrados.
-      </p>
+      <PageHeading
+        title="Portfolio"
+        subtitle={`${reports.length} reporte${reports.length === 1 ? '' : 's'} cliente/periodo encontrados.`}
+        action={
+          <Link
+            to={`/portfolio/${workspaceId}/chat`}
+            className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline dark:text-brand-400"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Preguntarle al analista IA
+          </Link>
+        }
+      />
 
       <div className="mt-4">{workspaceId && <InvoiceUpload workspaceId={workspaceId} />}</div>
 
@@ -52,7 +55,7 @@ export function PortfolioPage() {
             <Link
               key={`${report.client_id}-${report.period}`}
               to={`/portfolio/${workspaceId}/clients/${report.client_id}?period=${report.period}`}
-              className="block rounded-lg border border-slate-200 bg-white p-4 transition hover:border-indigo-400 dark:border-slate-700 dark:bg-slate-900"
+              className="block rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-400 dark:border-slate-700 dark:bg-slate-900"
             >
               <div className="flex items-center justify-between">
                 <h2 className="font-medium text-slate-800 dark:text-slate-100">

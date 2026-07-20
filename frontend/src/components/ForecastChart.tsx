@@ -10,10 +10,11 @@ import {
 } from 'recharts'
 import type { ForecastResult } from '../types'
 import { formatCurrency } from '../utils/format'
+import { Card } from './ui/Card'
 
 const SCENARIO_COLORS = {
-  best: '#16a34a',
-  base: '#2563eb',
+  best: '#059669',
+  base: '#1b69b0',
   worst: '#dc2626',
 }
 
@@ -42,7 +43,7 @@ export function ForecastChart({ forecasts }: { forecasts: ForecastResult[] }) {
       <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
         Forecast de resultado neto (best / base / worst)
       </h3>
-      <div className="h-72 w-full rounded-lg border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+      <Card className="h-72 w-full p-2">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
@@ -55,7 +56,7 @@ export function ForecastChart({ forecasts }: { forecasts: ForecastResult[] }) {
             <Line type="monotone" dataKey="worst" name="Worst" stroke={SCENARIO_COLORS.worst} strokeWidth={2} />
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </Card>
       <ul className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
         {forecasts
           .filter((f) => f.scenario === 'base')
