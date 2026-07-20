@@ -27,7 +27,7 @@ interface ChartRow {
 
 export function ForecastChart({ forecasts }: { forecasts: ForecastResult[] }) {
   if (forecasts.length === 0) {
-    return <p className="text-sm text-slate-400">No hay suficiente historial para proyectar este cliente.</p>
+    return <p className="text-sm text-slate-400">Not enough history to forecast this client.</p>
   }
 
   const byPeriod = new Map<string, ChartRow>()
@@ -41,7 +41,7 @@ export function ForecastChart({ forecasts }: { forecasts: ForecastResult[] }) {
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
-        Forecast de resultado neto (best / base / worst)
+        Net income forecast (best / base / worst)
       </h3>
       <Card className="h-72 w-full p-2">
         <ResponsiveContainer width="100%" height="100%">

@@ -23,7 +23,7 @@ export function LoginPage() {
       const target = me.workspace_ids[0]
       navigate(target ? `/portfolio/${target}` : '/upload')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo iniciar sesión.')
+      setError(err instanceof ApiError ? err.message : 'Could not log in.')
     } finally {
       setLoading(false)
     }
@@ -33,7 +33,7 @@ export function LoginPage() {
     <div className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-4 px-4">
       <img src="/logo-mark-192.png" alt="Alphatense" className="h-16 w-16" />
       <h1 translate="no" className="notranslate text-lg font-semibold text-slate-900 dark:text-slate-50">
-        Iniciar sesión
+        Log in
       </h1>
       <Card className="w-full p-6">
         <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
@@ -49,19 +49,19 @@ export function LoginPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Contraseña"
+            placeholder="Password"
             required
           />
           <Button type="submit" disabled={loading} className="mt-1">
-            {loading ? 'Entrando…' : 'Entrar'}
+            {loading ? 'Logging in…' : 'Log in'}
           </Button>
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </form>
       </Card>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        ¿No tenés cuenta todavía?{' '}
+        Don&apos;t have an account yet?{' '}
         <Link to="/signup" className="text-brand-600 hover:underline dark:text-brand-400">
-          Registrarse
+          Sign up
         </Link>
       </p>
     </div>

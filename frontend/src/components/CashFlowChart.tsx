@@ -32,7 +32,7 @@ export function CashFlowChart({ workspaceId, clientId }: { workspaceId: string; 
       const result = await getClientCashFlow(workspaceId, clientId, Number(startingBalance), asOf)
       setForecast(result)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo proyectar el cash flow.')
+      setError(err instanceof ApiError ? err.message : 'Could not project cash flow.')
     } finally {
       setLoading(false)
     }
@@ -42,10 +42,10 @@ export function CashFlowChart({ workspaceId, clientId }: { workspaceId: string; 
 
   return (
     <div>
-      <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Cash Flow Proyectado</h3>
+      <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Projected Cash Flow</h3>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
         <label className="text-sm text-slate-600 dark:text-slate-300">
-          Fecha de partida
+          Starting date
           <TextInput
             type="date"
             value={asOf}
@@ -54,7 +54,7 @@ export function CashFlowChart({ workspaceId, clientId }: { workspaceId: string; 
           />
         </label>
         <label className="text-sm text-slate-600 dark:text-slate-300">
-          Balance inicial
+          Starting balance
           <TextInput
             type="number"
             value={startingBalance}
@@ -64,7 +64,7 @@ export function CashFlowChart({ workspaceId, clientId }: { workspaceId: string; 
           />
         </label>
         <Button type="submit" size="sm" disabled={!asOf || !startingBalance || loading}>
-          {loading ? 'Proyectando…' : 'Ver cash flow'}
+          {loading ? 'Projecting…' : 'View cash flow'}
         </Button>
       </form>
 

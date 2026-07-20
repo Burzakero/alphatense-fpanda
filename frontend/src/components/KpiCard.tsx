@@ -17,7 +17,7 @@ export function KpiCard({
         {formatCurrency(value)}
       </p>
       {marginPct !== undefined && (
-        <p className="mt-1 text-xs text-slate-400">margen {formatPct(marginPct)}</p>
+        <p className="mt-1 text-xs text-slate-400">margin {formatPct(marginPct)}</p>
       )}
     </Card>
   )

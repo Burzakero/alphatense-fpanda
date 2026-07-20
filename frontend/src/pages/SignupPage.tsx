@@ -24,7 +24,7 @@ export function SignupPage() {
       const target = me.workspace_ids[0]
       navigate(target ? `/portfolio/${target}` : '/upload')
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo crear la cuenta.')
+      setError(err instanceof ApiError ? err.message : 'Could not create the account.')
     } finally {
       setLoading(false)
     }
@@ -34,17 +34,17 @@ export function SignupPage() {
     <div className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-4 px-4">
       <img src="/logo-mark-192.png" alt="Alphatense" className="h-16 w-16" />
       <h1 translate="no" className="notranslate text-lg font-semibold text-slate-900 dark:text-slate-50">
-        Crear cuenta
+        Create account
       </h1>
       <p className="text-center text-sm text-slate-500 dark:text-slate-400">
-        Una cuenta por asesoría — vas a ver solo tu propia cartera de clientes.
+        One account per advisory firm — you&apos;ll only see your own client portfolio.
       </p>
       <Card className="w-full p-6">
         <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
           <TextInput
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Nombre de la asesoría"
+            placeholder="Advisory firm name"
             required
             autoFocus
           />
@@ -59,20 +59,20 @@ export function SignupPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Contraseña (mínimo 8 caracteres)"
+            placeholder="Password (minimum 8 characters)"
             minLength={8}
             required
           />
           <Button type="submit" disabled={loading} className="mt-1">
-            {loading ? 'Creando cuenta…' : 'Registrarse'}
+            {loading ? 'Creating account…' : 'Sign up'}
           </Button>
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </form>
       </Card>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        ¿Ya tenés cuenta?{' '}
+        Already have an account?{' '}
         <Link to="/login" className="text-brand-600 hover:underline dark:text-brand-400">
-          Iniciar sesión
+          Log in
         </Link>
       </p>
     </div>

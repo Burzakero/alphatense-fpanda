@@ -35,9 +35,9 @@ export function ChatPage() {
       setHistory(result.history)
     } catch (err) {
       if (err instanceof ApiError && err.status === 503) {
-        setError('El asistente conversacional todavía no está configurado (falta la API key del lado del servidor).')
+        setError('The conversational assistant isn’t configured yet (missing server-side API key).')
       } else {
-        setError(err instanceof ApiError ? err.message : 'No se pudo contactar al asistente.')
+        setError(err instanceof ApiError ? err.message : 'Could not reach the assistant.')
       }
     } finally {
       setLoading(false)
@@ -46,10 +46,10 @@ export function ChatPage() {
 
   return (
     <div className="mx-auto flex h-screen max-w-3xl flex-col px-4 py-8">
-      <BackLink to={`/portfolio/${workspaceId}`}>Volver al portfolio</BackLink>
-      <h1 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">Analista FP&A</h1>
+      <BackLink to={`/portfolio/${workspaceId}`}>Back to portfolio</BackLink>
+      <h1 className="mt-2 text-xl font-semibold text-slate-900 dark:text-slate-50">FP&A Analyst</h1>
       <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Preguntale en lenguaje natural por KPIs, variance, forecast, aging o cash flow de cualquier cliente.
+        Ask in plain English about KPIs, variance, forecast, aging or cash flow for any client.
       </p>
 
       <div className="mt-6 flex-1 space-y-3 overflow-y-auto">
@@ -65,7 +65,7 @@ export function ChatPage() {
             {m.content}
           </div>
         ))}
-        {loading && <p className="text-sm text-slate-400">Pensando…</p>}
+        {loading && <p className="text-sm text-slate-400">Thinking…</p>}
       </div>
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -75,12 +75,12 @@ export function ChatPage() {
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="¿Cómo viene Beacon Partners este mes?"
+          placeholder="How is Beacon Partners doing this month?"
           className="flex-1"
         />
         <Button type="submit" disabled={!input.trim() || loading}>
           <Send className="h-4 w-4" />
-          Enviar
+          Send
         </Button>
       </form>
     </div>

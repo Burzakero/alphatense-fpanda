@@ -18,8 +18,8 @@ function AgingTable({ report }: { report: AgingReport }) {
           <thead className={tableHead}>
             <tr>
               <th className={tableHeadCell}>Bucket</th>
-              <th className={tableHeadCell}>Monto</th>
-              <th className={tableHeadCell}>Facturas</th>
+              <th className={tableHeadCell}>Amount</th>
+              <th className={tableHeadCell}>Invoices</th>
             </tr>
           </thead>
           <tbody className={tableBody}>
@@ -59,10 +59,10 @@ export function AgingSection({ workspaceId, clientId }: { workspaceId: string; c
         .map((r) => r.value)
       setReports(ok)
       if (ok.length === 0) {
-        setError('No hay facturas AR ni AP cargadas para este cliente.')
+        setError('No AR or AP invoices on file for this client.')
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudo calcular el aging.')
+      setError(err instanceof ApiError ? err.message : 'Could not calculate aging.')
     } finally {
       setLoading(false)
     }
@@ -73,11 +73,11 @@ export function AgingSection({ workspaceId, clientId }: { workspaceId: string; c
       <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Aging AR/AP</h3>
       <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
         <label className="text-sm text-slate-600 dark:text-slate-300">
-          Fecha de corte
+          As-of date
           <TextInput type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} className="mt-1 block" />
         </label>
         <Button type="submit" size="sm" disabled={!asOf || loading}>
-          {loading ? 'Calculando…' : 'Ver aging'}
+          {loading ? 'Calculating…' : 'View aging'}
         </Button>
       </form>
 

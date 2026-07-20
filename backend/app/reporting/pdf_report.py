@@ -57,12 +57,12 @@ def _table_style(header_rows: int = 1) -> TableStyle:
 def _variance_section(title: str, variances: list[VarianceResult], styles) -> list:
     elements: list = [Paragraph(title, styles["Heading3"])]
     if not variances:
-        elements.append(Paragraph("Sin datos de comparación disponibles.", styles["BodyText"]))
+        elements.append(Paragraph("No comparison data available.", styles["BodyText"]))
         elements.append(Spacer(1, 12))
         return elements
 
     narrative_style = ParagraphStyle("narrative", parent=styles["BodyText"], fontSize=8, leading=10)
-    rows = [["KPI", "Actual", "Comparación", "Delta", "Sev.", "Narrativa"]]
+    rows = [["KPI", "Actual", "Comparison", "Delta", "Sev.", "Narrative"]]
     for v in variances:
         rows.append(
             [
@@ -84,7 +84,7 @@ def _variance_section(title: str, variances: list[VarianceResult], styles) -> li
 def _forecast_section(forecast: list[ForecastResult], styles) -> list:
     elements: list = [Paragraph("Forecast (best / base / worst)", styles["Heading2"])]
     narrative_style = ParagraphStyle("forecast_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
-    rows = [["Periodo", "Escenario", "Net income", "Assumptions"]]
+    rows = [["Period", "Scenario", "Net income", "Assumptions"]]
     for f in forecast:
         rows.append(
             [
@@ -107,7 +107,7 @@ def _aging_section(aging_reports: list[AgingReport], styles) -> list:
         elements.append(
             Paragraph(f"{report.type.value.upper()} — Total: {_currency(report.total_outstanding)}", styles["Heading3"])
         )
-        rows = [["Bucket", "Monto", "Facturas"]]
+        rows = [["Bucket", "Amount", "Invoices"]]
         for b in report.buckets:
             rows.append([b.bucket.value, _currency(b.amount), str(b.invoice_count)])
         table = Table(rows, colWidths=[100, 150, 100])
@@ -120,9 +120,9 @@ def _aging_section(aging_reports: list[AgingReport], styles) -> list:
 
 def _cash_flow_section(cash_flow: CashFlowForecast, styles) -> list:
     elements: list = [
-        Paragraph(f"Cash Flow Proyectado ({len(cash_flow.weeks)} semanas)", styles["Heading2"]),
+        Paragraph(f"Projected Cash Flow ({len(cash_flow.weeks)} weeks)", styles["Heading2"]),
     ]
-    rows = [["Semana", "AR", "AP", "Neto", "Balance"]]
+    rows = [["Week", "AR", "AP", "Net", "Balance"]]
     for w in cash_flow.weeks:
         rows.append(
             [
@@ -169,16 +169,16 @@ def generate_client_pdf(
     styles = getSampleStyleSheet()
     elements: list = []
 
-    elements.append(Paragraph(f"Informe Ejecutivo — {report.client_id}", styles["Title"]))
-    elements.append(Paragraph(f"Periodo: {report.period}", styles["Normal"]))
+    elements.append(Paragraph(f"Executive Report — {report.client_id}", styles["Title"]))
+    elements.append(Paragraph(f"Period: {report.period}", styles["Normal"]))
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    elements.append(Paragraph(f"Generado: {generated_at}", styles["Normal"]))
+    elements.append(Paragraph(f"Generated: {generated_at}", styles["Normal"]))
     elements.append(Spacer(1, 16))
 
     kpis = report.actual_kpis
-    elements.append(Paragraph("KPIs del periodo", styles["Heading2"]))
+    elements.append(Paragraph("Period KPIs", styles["Heading2"]))
     kpi_rows = [
-        ["Métrica", "Valor", "Margen"],
+        ["Metric", "Value", "Margin"],
         ["Revenue", _currency(kpis.revenue), "—"],
         ["Gross profit", _currency(kpis.gross_profit), _pct(kpis.gross_margin_pct)],
         ["EBITDA", _currency(kpis.ebitda), _pct(kpis.ebitda_margin_pct)],

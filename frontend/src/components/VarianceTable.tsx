@@ -8,7 +8,7 @@ export function VarianceTable({ title, variances }: { title: string; variances: 
     return (
       <div>
         <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">{title}</h3>
-        <p className="text-sm text-slate-400">Sin datos de comparación disponibles.</p>
+        <p className="text-sm text-slate-400">No comparison data available.</p>
       </div>
     )
   }
@@ -22,10 +22,10 @@ export function VarianceTable({ title, variances }: { title: string; variances: 
             <tr>
               <th className={tableHeadCell}>KPI</th>
               <th className={tableHeadCell}>Actual</th>
-              <th className={tableHeadCell}>Comparación</th>
+              <th className={tableHeadCell}>Comparison</th>
               <th className={tableHeadCell}>Delta</th>
-              <th className={tableHeadCell}>Severidad</th>
-              <th className={tableHeadCell}>Narrativa</th>
+              <th className={tableHeadCell}>Severity</th>
+              <th className={tableHeadCell}>Narrative</th>
             </tr>
           </thead>
           <tbody className={tableBody}>

@@ -25,7 +25,7 @@ export function ClientDetailPage() {
     if (!workspaceId || !clientId || !period) return
     getClientReport(workspaceId, clientId, period)
       .then(setReport)
-      .catch((err) => setReportError(err instanceof ApiError ? err.message : 'No se pudo cargar el reporte.'))
+      .catch((err) => setReportError(err instanceof ApiError ? err.message : 'Could not load the report.'))
   }, [workspaceId, clientId, period])
 
   useEffect(() => {
@@ -33,17 +33,17 @@ export function ClientDetailPage() {
     getClientForecast(workspaceId, clientId)
       .then(setForecast)
       .catch((err) =>
-        setForecastError(err instanceof ApiError ? err.message : 'No se pudo cargar el forecast.'),
+        setForecastError(err instanceof ApiError ? err.message : 'Could not load the forecast.'),
       )
   }, [workspaceId, clientId])
 
   if (!period) {
-    return <div className="p-8 text-sm text-red-600">Falta el periodo en la URL.</div>
+    return <div className="p-8 text-sm text-red-600">Missing period in the URL.</div>
   }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <BackLink to={`/portfolio/${workspaceId}`}>Volver al portfolio</BackLink>
+      <BackLink to={`/portfolio/${workspaceId}`}>Back to portfolio</BackLink>
       <div className="mt-2 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-50">
           {clientId} <span className="text-slate-400">· {period}</span>
@@ -55,7 +55,7 @@ export function ClientDetailPage() {
               { period, ...(getToken() ? { token: getToken()! } : {}) },
             )}`}
           >
-            Descargar informe PDF
+            Download PDF report
           </ButtonLink>
         )}
       </div>

@@ -17,10 +17,10 @@ export function InvoiceUpload({ workspaceId }: { workspaceId: string }) {
     setLoading(true)
     try {
       const { invoices_loaded } = await uploadInvoices(workspaceId, file)
-      setStatus(`${invoices_loaded} facturas cargadas.`)
+      setStatus(`${invoices_loaded} invoices loaded.`)
       setFile(null)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'No se pudieron cargar las facturas.')
+      setError(err instanceof ApiError ? err.message : 'Could not load the invoices.')
     } finally {
       setLoading(false)
     }
@@ -32,8 +32,8 @@ export function InvoiceUpload({ workspaceId }: { workspaceId: string }) {
       className="flex flex-wrap items-center gap-3 rounded-lg border border-dashed border-slate-300 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
     >
       <div>
-        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Facturas AR/AP (opcional)</p>
-        <p className="text-xs text-slate-400">Habilita aging y cash flow por cliente.</p>
+        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">AR/AP invoices (optional)</p>
+        <p className="text-xs text-slate-400">Enables aging and cash flow per client.</p>
       </div>
       <input
         type="file"
@@ -42,7 +42,7 @@ export function InvoiceUpload({ workspaceId }: { workspaceId: string }) {
         className="text-sm text-slate-600 dark:text-slate-300"
       />
       <Button type="submit" size="sm" disabled={!file || loading}>
-        {loading ? 'Subiendo…' : 'Subir facturas'}
+        {loading ? 'Uploading…' : 'Upload invoices'}
       </Button>
       {status && <p className="text-sm text-emerald-600 dark:text-emerald-400">{status}</p>}
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

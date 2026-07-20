@@ -17,7 +17,7 @@ export function PortfolioPage() {
     if (!workspaceId) return
     getPortfolioReport(workspaceId)
       .then(setReports)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'No se pudo cargar el portfolio.'))
+      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load the portfolio.'))
   }, [workspaceId])
 
   if (error) {
@@ -25,21 +25,21 @@ export function PortfolioPage() {
   }
 
   if (!reports) {
-    return <div className="p-8 text-sm text-slate-500">Cargando portfolio…</div>
+    return <div className="p-8 text-sm text-slate-500">Loading portfolio…</div>
   }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <PageHeading
         title="Portfolio"
-        subtitle={`${reports.length} reporte${reports.length === 1 ? '' : 's'} cliente/periodo encontrados.`}
+        subtitle={`${reports.length} client/period report${reports.length === 1 ? '' : 's'} found.`}
         action={
           <Link
             to={`/portfolio/${workspaceId}/chat`}
             className="inline-flex items-center gap-1.5 text-sm text-brand-600 hover:underline dark:text-brand-400"
           >
             <MessageCircle className="h-4 w-4" />
-            Preguntarle al analista IA
+            Ask the AI analyst
           </Link>
         }
       />
@@ -66,7 +66,7 @@ export function PortfolioPage() {
                     <SeverityBadge key={v.kpi_name + v.comparison_scenario} severity={v.severity} />
                   ))}
                   {materialVariances.length === 0 && (
-                    <span className="text-xs text-slate-400">sin desvíos relevantes</span>
+                    <span className="text-xs text-slate-400">no material variances</span>
                   )}
                 </div>
               </div>
