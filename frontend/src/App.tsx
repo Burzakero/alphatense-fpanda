@@ -5,6 +5,7 @@ import { TopNav } from './components/layout/TopNav'
 import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
+import { HomePage } from './pages/HomePage'
 import { UploadPage } from './pages/UploadPage'
 import { PortfolioPage } from './pages/PortfolioPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
@@ -27,6 +28,14 @@ function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route
+        path="/home"
+        element={
+          <AppShell>
+            <HomePage />
+          </AppShell>
+        }
+      />
       <Route
         path="/upload"
         element={

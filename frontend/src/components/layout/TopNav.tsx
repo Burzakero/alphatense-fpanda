@@ -21,7 +21,7 @@ export function TopNav() {
   return (
     <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to="/home" className="flex items-center gap-2">
           <img src="/logo-mark-192.png" alt="" className="h-8 w-8" />
           <span
             translate="no"

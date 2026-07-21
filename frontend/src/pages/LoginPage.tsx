@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ApiError, getMe, login } from '../api/client'
+import { ApiError, login } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { TextInput } from '../components/ui/TextInput'
@@ -19,9 +19,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      const me = await getMe()
-      const target = me.workspace_ids[0]
-      navigate(target ? `/portfolio/${target}` : '/upload')
+      navigate('/home')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not log in.')
     } finally {

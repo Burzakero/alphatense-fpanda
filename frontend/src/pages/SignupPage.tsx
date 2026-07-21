@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ApiError, getMe, signup } from '../api/client'
+import { ApiError, signup } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { TextInput } from '../components/ui/TextInput'
@@ -20,9 +20,7 @@ export function SignupPage() {
     setLoading(true)
     try {
       await signup(name, email, password)
-      const me = await getMe()
-      const target = me.workspace_ids[0]
-      navigate(target ? `/portfolio/${target}` : '/upload')
+      navigate('/home')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create the account.')
     } finally {
