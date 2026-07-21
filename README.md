@@ -1,263 +1,309 @@
-# Finance Alphatense AI
+# Alphatense
 
-Copiloto de IA para asesorías financieras (UK & US): un analista financiero
-senior disponible 24/7, encima del ERP de cada cliente.
+AI copilot for financial advisory firms (UK & US): a senior financial
+analyst available 24/7, on top of every client's accounting system.
 
-Este repositorio contiene el **motor FP&A** (Fase 1 del plan de producto) y
-gran parte de Fase 2: ingesta de Excel/CSV, KPIs, variance analysis,
-forecast, aging AR/AP y cash flow con narrativa en lenguaje natural, un
-agente conversacional sobre Claude, un frontend React que consume todo
-eso, y generación de PDF ejecutivo — sobre una arquitectura multi-cliente
-nativa (una asesoría gestiona decenas de clientes desde un panel único).
+Live at **[alphatense.com](https://alphatense.com)** — frontend on Vercel,
+backend on Railway, real per-advisor accounts, SQLite persistence.
 
-Ver `PROGRESS.md` para el detalle sesión a sesión de qué se construyó, qué
-decisiones técnicas se tomaron y por qué, y qué sigue bloqueado.
+This repository contains the **FP&A engine** (Phase 1 of the product plan)
+and most of Phase 2: Excel/CSV ingestion, KPIs, variance analysis,
+forecast, AR/AP aging and cash flow with natural-language narrative, a
+conversational agent on Claude, real Xero OAuth2 integration, a React
+frontend with real accounts, and executive PDF generation — on a
+native multi-client architecture (one advisory firm manages dozens of
+clients from a single dashboard).
 
-## Estado actual
+See `PROGRESS.md` for the session-by-session build log: what was built,
+what technical decisions were made and why, and what's still blocked.
 
-**Fase 1 -- MVP (completo)**
-- [x] Ingesta y validación de Excel/CSV multi-cliente
-- [x] Motor de cálculo de KPIs (revenue, gross margin, EBITDA, net income)
-- [x] Variance analysis (actual vs budget, actual vs periodo anterior) con
-      narrativa automática y detección de la cuenta que más contribuyó al
-      desvío
-- [x] Orquestador multi-cliente (`Workspace`) que procesa un archivo con
-      varios clientes/periodos en una sola llamada
-- [x] Generación del informe ejecutivo en PDF con un clic
-- [x] Frontend (React) que consume la API completa
-- [ ] Conector Xero -- **mapeo de datos construido y probado contra un
-      adaptador simulado**, falta el `RealXeroClient` (credenciales OAuth
-      reales)
-- [ ] Agente FP&A conversacional -- **construido**, pendiente de
-      `ANTHROPIC_API_KEY` para probarlo en vivo
+## Current status
 
-**Fase 2 -- en progreso**
-- [x] Forecast AI con escenarios (best/base/worst) a partir del historial
-      de actuals de cada cliente, con narrativa de las tasas de crecimiento
-      asumidas
-- [x] API HTTP (FastAPI) que expone todo el motor por HTTP
-- [x] Agente de aging AR/AP (antigüedad de cuentas por cobrar/pagar)
-- [x] Agente de cash flow (proyección de 13 semanas a partir de facturas
-      AR/AP con fecha de vencimiento)
-- [ ] Conector QuickBooks -- **mapeo de datos construido y probado contra
-      un adaptador simulado**, falta el `RealQuickBooksClient`
-      (credenciales OAuth reales)
-- [ ] Deploy público (Railway + Vercel) -- código listo, falta el signup
-      del usuario
+**Phase 1 — MVP (complete)**
+- [x] Multi-client Excel/CSV ingestion and validation
+- [x] KPI engine (revenue, gross margin, EBITDA, net income)
+- [x] Variance analysis (actual vs budget, actual vs prior period) with
+      automatic narrative and detection of the account that drove the
+      variance most
+- [x] Multi-client orchestrator (`Workspace`) that processes a file with
+      many clients/periods in a single call
+- [x] One-click executive PDF report
+- [x] React frontend consuming the full API, with real accounts and a
+      marketing landing page
+- [x] Conversational FP&A agent, verified live against a real Anthropic
+      API key
+- [x] Real per-advisor accounts (email/password) with SQLite persistence
+      — each advisory firm only sees its own client portfolio
 
-## Estructura
+**Phase 2 — in progress**
+- [x] Forecast AI with scenarios (best/base/worst) from each client's
+      actuals history, with narrative on the assumed growth rates
+- [x] HTTP API (FastAPI) exposing the whole engine
+- [x] AR/AP aging agent
+- [x] Cash flow agent (13-week projection from AR/AP invoices with due
+      dates)
+- [x] Real Xero connector — OAuth2 authorization-code + refresh flow,
+      `RealXeroClient` verified live against a real trial org
+- [ ] QuickBooks connector — **data mapping built and tested against a
+      simulated adapter**, `RealQuickBooksClient` still needs Intuit
+      developer OAuth credentials
+- [x] Public deployment (Railway + Vercel), custom domain
+      (`alphatense.com`)
+
+**What's left:** validate with 5-10 real UK advisory firms (business step,
+not code), and the QuickBooks OAuth credentials to finish that connector.
+
+## Structure
 
 ```
 backend/
   app/
-    models/domain.py      # Advisor, Client, LineItem, FinancialStatement, KPISet, VarianceResult,
-                           # ForecastResult, Invoice, AgingReport, CashFlowForecast
-    ingestion/parser.py    # Excel/CSV -> FinancialStatement (validación de esquema)
-    ingestion/invoices.py  # Excel/CSV -> Invoice (esquema de facturas AR/AP, separado del anterior)
-    engine/kpis.py         # FinancialStatement -> KPISet
-    engine/variance.py     # KPISet actual vs budget/prior -> VarianceResult (+ narrativa)
-    engine/forecast.py     # historial de actuals -> ForecastResult (best/base/worst)
-    engine/aging.py        # facturas AR/AP -> AgingReport (buckets por días de vencimiento)
-    engine/cash_flow.py    # facturas AR/AP -> CashFlowForecast (balance proyectado semana a semana)
-    engine/workspace.py    # Orquestador multi-cliente: un archivo -> reportes + forecasts + aging + cash flow
-    agents/fpa_agent.py    # Agente conversacional (Claude) sobre las 5 capacidades del motor
-    reporting/pdf_report.py # ClientReport (+ forecast/aging/cash flow opcionales) -> PDF ejecutivo
-    integrations/xero/     # Conector Xero: client.py (Protocol + FakeXeroClient), mapper.py, sync.py
-    integrations/quickbooks/ # Conector QuickBooks: client.py (Protocol + FakeQuickBooksClient), mapper.py, sync.py
-    api/main.py            # FastAPI: expone el motor completo por HTTP
-    api/auth.py             # Gate de acceso compartido para el deploy público (no-op en dev local)
-  sample_data/sample_financials.csv  # 2 clientes de ejemplo, 3 escenarios cada uno
-  sample_data/sample_invoices.csv    # facturas AR/AP de ejemplo, cubriendo los 5 buckets de aging
-  tests/                 # pytest, cobertura de cada módulo de arriba
-  run_demo.py            # demo end-to-end por consola
+    models/domain.py       # Advisor, Client, LineItem, FinancialStatement, KPISet, VarianceResult,
+                            # ForecastResult, Invoice, AgingReport, CashFlowForecast
+    db/                     # SQLite persistence: database.py (engine/session), models.py (SQLAlchemy
+                            # tables: AdvisorAccount, Session, WorkspaceRecord), repository.py (data access)
+    ingestion/parser.py     # Excel/CSV -> FinancialStatement (schema validation)
+    ingestion/invoices.py   # Excel/CSV -> Invoice (AR/AP invoice schema, separate from the above)
+    engine/kpis.py          # FinancialStatement -> KPISet
+    engine/variance.py      # KPISet actual vs budget/prior -> VarianceResult (+ narrative)
+    engine/forecast.py      # actuals history -> ForecastResult (best/base/worst)
+    engine/aging.py         # AR/AP invoices -> AgingReport (buckets by days overdue)
+    engine/cash_flow.py     # AR/AP invoices -> CashFlowForecast (week-by-week projected balance)
+    engine/workspace.py     # Multi-client orchestrator: one file -> reports + forecasts + aging + cash flow
+    agents/fpa_agent.py     # Conversational agent (Claude) over the engine's 5 capabilities
+    reporting/pdf_report.py # ClientReport (+ optional forecast/aging/cash flow) -> executive PDF
+    integrations/xero/      # Xero connector: client.py (Protocol + Fake/RealXeroClient), mapper.py,
+                            # sync.py, oauth.py (OAuth2 authorization-code + refresh flow)
+    integrations/quickbooks/ # QuickBooks connector: client.py (Protocol + FakeQuickBooksClient),
+                            # mapper.py, sync.py -- simulated, RealQuickBooksClient still pending
+    api/main.py              # FastAPI: exposes the whole engine over HTTP, incl. /auth/* routes
+    api/auth.py               # Per-advisor bearer-token auth (see "Accounts & persistence" below)
+  sample_data/sample_financials.csv  # 2 sample clients, 3 scenarios each
+  sample_data/sample_invoices.csv    # sample AR/AP invoices covering all 5 aging buckets
+  tests/                  # pytest, coverage for every module above (144 tests)
+  run_demo.py             # end-to-end console demo
 
-frontend/                # React + Vite + TypeScript + Tailwind
+frontend/                 # React + Vite + TypeScript + Tailwind v4
   src/
-    pages/                # UploadPage, PortfolioPage, ClientDetailPage, ChatPage
-    components/           # KpiCard, VarianceTable, ForecastChart, AgingSection, CashFlowChart,
-                          # InvoiceUpload, AccessGate
-    api/client.ts         # cliente HTTP tipado contra la API de arriba
+    pages/                 # LandingPage, LoginPage, SignupPage, UploadPage, PortfolioPage,
+                            # ClientDetailPage, ChatPage
+    components/            # KpiCard, VarianceTable, ForecastChart, AgingSection, CashFlowChart,
+                            # InvoiceUpload, RequireAuth, layout/TopNav, ui/ (Button, Card, TextInput, ...)
+    auth/context.ts         # Current-advisor React context (name, workspace_ids), used by TopNav
+    api/client.ts            # Typed HTTP client against the API above
 ```
 
-## Cómo correrlo
+## Running it locally
 
 ```bash
 cd backend
 pip install -r requirements.txt
 
-# correr los tests
+# run the tests
 pytest -v
 
-# ver el motor en acción con los datos de ejemplo
+# see the engine in action against the sample data
 python run_demo.py
 
-# levantar la API HTTP en http://127.0.0.1:8000
+# start the HTTP API on http://127.0.0.1:8000
 uvicorn app.api.main:app --reload
 ```
 
 ```bash
 cd frontend
 npm install
-npm run dev   # http://localhost:5173, apunta a la API en 127.0.0.1:8000 por defecto
+npm run dev   # http://localhost:5173, points at the API on 127.0.0.1:8000 by default
 ```
 
-Para el agente conversacional, copiar `backend/.env.example` a `backend/.env`
-y completar `ANTHROPIC_API_KEY`. Sin esa variable, `POST /chat` responde
-`503` de forma controlada (no rompe el resto de la API).
+Copy `backend/.env.example` to `backend/.env` and fill in:
+- `ANTHROPIC_API_KEY` — for the conversational agent. Without it, `POST
+  /workspaces/{id}/chat` returns `503` in a controlled way instead of
+  failing confusingly.
+- `DATABASE_PATH` — optional, defaults to `./data/alphatense.db` for local
+  dev. In production this points at a Railway persistent volume mount so
+  advisor accounts and uploaded data survive restarts.
+- `XERO_CLIENT_ID` / `XERO_CLIENT_SECRET` / `XERO_REDIRECT_URI` — for the
+  real Xero OAuth connector.
 
-## Esquema de datos esperado
+## Accounts & persistence
 
-### Excel/CSV de financials (P&L)
+Each advisory firm has its own account (`POST /auth/signup`, email +
+password, bcrypt-hashed) and only sees the workspaces it created — ownership
+is enforced on every workspace-scoped route. Sessions are opaque bearer
+tokens (SHA-256-hashed in the database, 30-day expiry, no JWT). Workspace
+data (P&L statements + invoices) is cached in memory for the life of the
+process but persisted to SQLite on every write, so a server restart just
+means the next request rehydrates from disk instead of losing data.
 
-| columna     | descripción                                                          |
+## Expected data schema
+
+### Financials (P&L) Excel/CSV
+
+| column      | description                                                          |
 |-------------|-----------------------------------------------------------------------|
-| client_id   | identificador del cliente (o usar `client_name` y se deriva solo)     |
-| period      | etiqueta de periodo, ej. `2026-06`                                     |
-| scenario    | `actual`, `budget`, o `prior`                                          |
-| account     | nombre de la cuenta contable, ej. `Marketing`                          |
+| client_id   | client identifier (or use `client_name` and it's derived automatically) |
+| period      | period label, e.g. `2026-06`                                          |
+| scenario    | `actual`, `budget`, or `prior`                                        |
+| account     | account name, e.g. `Marketing`                                        |
 | category    | `revenue`, `cogs`, `opex`, `other_income`, `other_expense`, `tax`      |
-| amount      | monto numérico (gastos como positivos)                                |
+| amount      | numeric amount (expenses as positive)                                 |
 
-Ver `backend/sample_data/sample_financials.csv` para un ejemplo completo con
-dos clientes.
+See `backend/sample_data/sample_financials.csv` for a full example with two
+clients.
 
-### Excel/CSV de facturas AR/AP (opcional, habilita aging y cash flow)
+### AR/AP invoices Excel/CSV (optional, enables aging and cash flow)
 
-| columna       | descripción                                                    |
+| column        | description                                                    |
 |---------------|-------------------------------------------------------------------|
-| client_id     | identificador del cliente (o `client_name`, igual que arriba)     |
-| invoice_id    | identificador de la factura, ej. `INV-1042`                       |
-| type          | `ar` (cuenta por cobrar) o `ap` (cuenta por pagar)                 |
-| counterparty  | nombre del cliente final (AR) o proveedor (AP)                    |
-| issue_date    | fecha de emisión, ISO (`2026-06-15`)                               |
-| due_date      | fecha de vencimiento, ISO                                          |
-| amount        | monto total de la factura                                          |
-| amount_paid   | opcional, default 0 -- monto ya cobrado/pagado                     |
+| client_id     | client identifier (or `client_name`, same as above)                |
+| invoice_id    | invoice identifier, e.g. `INV-1042`                                |
+| type          | `ar` (accounts receivable) or `ap` (accounts payable)              |
+| counterparty  | end customer name (AR) or vendor name (AP)                        |
+| issue_date    | issue date, ISO (`2026-06-15`)                                     |
+| due_date      | due date, ISO                                                      |
+| amount        | total invoice amount                                               |
+| amount_paid   | optional, default 0 — amount already collected/paid                |
 
-Ver `backend/sample_data/sample_invoices.csv` para un ejemplo completo.
+See `backend/sample_data/sample_invoices.csv` for a full example.
 
-## Diseño multi-cliente
+## Multi-client design
 
-`Workspace` indexa todas las líneas por `(client_id, period, scenario)` y
-expone `build_portfolio_report()`, que calcula KPIs y variance analysis para
-todos los clientes de una asesoría en una sola llamada. Agregar un cliente
-nuevo es agregar filas al archivo fuente (o, en fases futuras, conectar un
-nuevo org de Xero) — el motor no cambia.
+`Workspace` indexes every line by `(client_id, period, scenario)` and
+exposes `build_portfolio_report()`, which computes KPIs and variance
+analysis for every client in an advisory firm's portfolio in a single call.
+Adding a new client means adding rows to the source file (or connecting a
+new Xero org) — the engine itself never changes.
 
-## Forecast AI (Fase 2)
+## Forecast AI (Phase 2)
 
-`engine/forecast.py` proyecta cada categoría del P&L (revenue, cogs, opex,
-etc.) tomando la tasa de crecimiento promedio del historial de actuals de
-un cliente. El caso **base** usa esa tasa promedio; **best** y **worst**
-suman/restan un desvío estándar de la volatilidad histórica de esa misma
-tasa. Es decir: un cliente con historial estable (como Acme en los datos de
-ejemplo) obtiene un abanico de escenarios angosto, y un cliente con
-historial volátil (como Beacon, que tuvo un mes flojo) obtiene un abanico
-más amplio — el spread entre escenarios es información real sobre el
-riesgo, no un adorno.
+`engine/forecast.py` projects every P&L category (revenue, cogs, opex,
+etc.) using the average growth rate from a client's actuals history. The
+**base** case uses that average rate; **best** and **worst** add/subtract
+one standard deviation of that same rate's historical volatility. A client
+with a stable history (like Acme in the sample data) gets a narrow scenario
+spread; a client with a volatile history (like Beacon, which had a rough
+month) gets a wider one — the spread between scenarios is real information
+about risk, not decoration.
 
-Es deliberadamente determinístico (sin llamada a un LLM): cada número se
-puede rastrear hasta una tasa de crecimiento concreta que el asesor puede
-auditar.
+Deliberately deterministic (no LLM call): every number can be traced back
+to a concrete growth rate an advisor can audit.
 
-## Aging AR/AP y cash flow (Fase 2)
+## AR/AP aging and cash flow (Phase 2)
 
-`engine/aging.py` bucketea las facturas abiertas de un cliente (AR o AP)
-por días de vencimiento (current, 1-30, 31-60, 61-90, 90+), con narrativa
-que nombra a la contraparte con mayor saldo abierto.
+`engine/aging.py` buckets a client's open invoices (AR or AP) by days
+overdue (current, 1-30, 31-60, 61-90, 90+), with narrative naming the
+counterparty with the largest open balance.
 
-`engine/cash_flow.py` proyecta el balance de caja semana a semana (13
-semanas por defecto) a partir de esas mismas facturas AR/AP, más un balance
-inicial que provee el asesor (no hay bank feed en el sistema). Deliberadamente
-no mezcla un promedio de opex histórico como salida recurrente, para evitar
-doble conteo contra las facturas de AP que ya representan parte de esos
-gastos -- el scope queda explícito en la narrativa del resultado.
+`engine/cash_flow.py` projects the cash balance week by week (13 weeks by
+default) from those same AR/AP invoices, plus a starting balance the
+advisor supplies (there's no bank feed in the system). Deliberately doesn't
+mix in an average of historical opex as a recurring outflow, to avoid
+double-counting against the AP invoices that already represent part of
+those expenses — that scope is explicit in the result's narrative.
 
-Ambos requieren subir un archivo de facturas (`POST /workspaces/{id}/invoices`)
-además del archivo de financials.
+Both require uploading an invoices file (`POST /workspaces/{id}/invoices`)
+in addition to the financials file.
 
-## Conector Xero (simulado)
+## Xero connector (real, live)
 
-`app/integrations/xero/` mapea la API real de Xero (`Invoices`, `Journals`,
-`Accounts` -- se descartó el reporte anidado `Reports/ProfitAndLoss` a favor
-de `Journals`+`Accounts`, mucho más simple de aplanar) a nuestros
-`Invoice`/`FinancialStatement`. `FakeXeroClient` devuelve fixtures con esa
-misma forma para un tenant demo (`demo-tenant-xero`) -- no hay OAuth real
-todavía. `client.py`/`mapper.py`/`sync.py` están separados justo para que
-un `RealXeroClient` (cuando haya credenciales) se intercambie sin tocar el
-resto. `POST /workspaces/{id}/xero/sync` (body `{tenant_id, client_id,
-period}`) usa la simulación hoy.
+`app/integrations/xero/` implements a full OAuth2 authorization-code +
+refresh flow (`oauth.py`) and a `RealXeroClient` implementing the same
+`XeroClient` Protocol as `FakeXeroClient`, so the sync route needs no
+changes to swap between them. Verified live against a real Xero trial org:
+OAuth consent, and real `Invoices`/`Accounts`/`Contacts` calls. P&L is
+built from `Reports/ProfitAndLoss` (not raw `Journals`, which 401s under
+Xero's newer granular-scope model with no scope able to unlock it).
+`GET /xero/connect` starts the consent flow; `GET /xero/callback` is the
+OAuth redirect target. `POST /workspaces/{id}/xero/sync` (body
+`{tenant_id, client_id, period}`) uses `RealXeroClient` once a tenant has
+connected, otherwise falls back to `FakeXeroClient` (fixtures for
+`tenant_id="demo-tenant-xero"`).
 
-## Conector QuickBooks (simulado)
+## QuickBooks connector (simulated)
 
-`app/integrations/quickbooks/` mapea la API real de QuickBooks Online
-(`Invoice`, `Bill`, `JournalEntry`, `Account` -- mismo criterio que Xero:
-se descartó el reporte anidado `reports/ProfitAndLoss` a favor de
-`JournalEntry`+`Account`) a nuestros `Invoice`/`FinancialStatement`. A
-diferencia de Xero, QuickBooks separa AR y AP en dos entidades (`Invoice`
-y `Bill`) y su campo `Balance` es el saldo **pendiente**, no lo pagado --
-la conversión `amount_paid = TotalAmt - Balance` vive documentada en
-`mapper.py`. `FakeQuickBooksClient` devuelve fixtures con esa forma para
-un realm demo (`demo-realm-quickbooks`) -- no hay OAuth real todavía.
-Mismo patrón `client.py`/`mapper.py`/`sync.py` que Xero, para que un
-`RealQuickBooksClient` se intercambie sin tocar el resto. `POST
+`app/integrations/quickbooks/` maps the real QuickBooks Online API
+(`Invoice`, `Bill`, `JournalEntry`, `Account` — same call as Xero: the
+nested `reports/ProfitAndLoss` report was skipped in favor of
+`JournalEntry`+`Account`, much simpler to flatten) to our
+`Invoice`/`FinancialStatement`. Unlike Xero, QuickBooks splits AR and AP
+into two entities (`Invoice` and `Bill`) and its `Balance` field is the
+**outstanding** balance, not the paid amount — the
+`amount_paid = TotalAmt - Balance` conversion is documented in
+`mapper.py`. `FakeQuickBooksClient` returns fixtures with that same shape
+for a demo realm (`demo-realm-quickbooks`) — no real OAuth yet. Same
+`client.py`/`mapper.py`/`sync.py` pattern as Xero, so a
+`RealQuickBooksClient` swaps in without touching anything else. `POST
 /workspaces/{id}/quickbooks/sync` (body `{realm_id, client_id, period}`)
-usa la simulación hoy.
+uses the simulation today.
 
-## Agente conversacional (Fase 1/2)
+## Conversational agent (Phase 1/2)
 
-`app/agents/fpa_agent.py` expone las cinco capacidades del motor (resumen de
-portfolio, reporte de cliente, forecast, aging, cash flow) como tools de
-Claude (`claude-opus-4-8`, vía el SDK de Anthropic) para que un asesor
-pregunte en lenguaje natural en vez de navegar la API o la UI a mano. El
-agente nunca calcula nada por su cuenta -- solo decide qué tool llamar y
-narra el resultado, así que cada número sigue siendo el mismo que devuelve
-el motor determinístico.
+`app/agents/fpa_agent.py` exposes the engine's five capabilities (portfolio
+summary, client report, forecast, aging, cash flow) as Claude tools
+(`claude-opus-4-8`, via the Anthropic SDK) so an advisor can ask in plain
+English instead of navigating the API or UI by hand. The agent never
+computes anything itself — it only decides which tool to call and narrates
+the result, so every number is still exactly what the deterministic engine
+returns.
 
-Requiere `ANTHROPIC_API_KEY` en `backend/.env`. Sin ella, `POST /chat`
-responde `503` en vez de fallar de forma confusa.
+Requires `ANTHROPIC_API_KEY` in `backend/.env` (already configured in
+production). Without it, `POST /chat` returns `503` instead of failing
+confusingly.
 
-## PDF ejecutivo (Fase 1)
+## Executive PDF (Phase 1)
 
-`app/reporting/pdf_report.py` (ReportLab, sin dependencias de sistema)
-genera un PDF con KPIs, variance analysis, forecast, y -- si se pasan los
-parámetros `as_of`/`starting_balance` -- también aging y cash flow. Es el
-documento que un asesor le manda a su cliente o usa en la reunión mensual.
+`app/reporting/pdf_report.py` (ReportLab, no system dependencies) generates
+a PDF with KPIs, variance analysis, forecast, and — if the `as_of`/
+`starting_balance` params are passed — aging and cash flow too. It's the
+document an advisor sends their client or uses in the monthly review
+meeting.
 
-## API HTTP
+## HTTP API
 
-`app/api/main.py` expone el motor completo por HTTP con FastAPI. No hay
-base de datos: cada archivo subido se procesa en memoria bajo un
-`workspace_id` (UUID), válido mientras el proceso siga corriendo.
+`app/api/main.py` exposes the whole engine over HTTP with FastAPI. Every
+workspace-scoped route requires a bearer token (see "Accounts &
+persistence" above) and enforces that the workspace belongs to the
+authenticated advisor.
 
-| método | ruta | qué hace |
-|--------|------|----------|
-| GET  | `/health` | chequeo de salud |
-| POST | `/workspaces` | sube un CSV/Excel de financials y crea un workspace |
-| POST | `/workspaces/{id}/invoices` | sube un CSV/Excel de facturas AR/AP al workspace |
-| GET  | `/workspaces/{id}/clients` | lista los `client_id` encontrados |
-| GET  | `/workspaces/{id}/portfolio` | KPIs + variance de todos los clientes/periodos |
-| GET  | `/workspaces/{id}/clients/{client_id}/report?period=2026-06` | reporte de un cliente/periodo |
-| GET  | `/workspaces/{id}/clients/{client_id}/report/pdf?period=...&as_of=...&starting_balance=...` | PDF ejecutivo |
-| GET  | `/workspaces/{id}/clients/{client_id}/forecast?periods_ahead=3` | forecast best/base/worst |
-| GET  | `/workspaces/{id}/portfolio/forecast?periods_ahead=3` | forecast de todo el portfolio |
-| GET  | `/workspaces/{id}/clients/{client_id}/aging?type=ar\|ap&as_of=2026-06-30` | aging AR o AP |
-| GET  | `/workspaces/{id}/clients/{client_id}/cash-flow?starting_balance=...&as_of=...&weeks_ahead=13` | proyección de cash flow |
-| POST | `/workspaces/{id}/chat` | pregunta al agente conversacional |
-| POST | `/workspaces/{id}/xero/sync` | sincroniza un cliente desde Xero (simulado hoy, `FakeXeroClient`) |
-| POST | `/workspaces/{id}/quickbooks/sync` | sincroniza un cliente desde QuickBooks (simulado hoy, `FakeQuickBooksClient`) |
+| method | route | what it does |
+|--------|-------|----------|
+| GET  | `/health` | health check |
+| POST | `/auth/signup` | create an advisor account, get a session token |
+| POST | `/auth/login` | log in, get a session token |
+| POST | `/auth/logout` | invalidate the current session token |
+| GET  | `/auth/me` | current advisor + their workspace_ids |
+| POST | `/workspaces` | upload a financials CSV/Excel and create a workspace |
+| POST | `/workspaces/{id}/invoices` | upload an AR/AP invoices CSV/Excel into the workspace |
+| GET  | `/workspaces/{id}/clients` | list the `client_id`s found |
+| GET  | `/workspaces/{id}/portfolio` | KPIs + variance for every client/period |
+| GET  | `/workspaces/{id}/clients/{client_id}/report?period=2026-06` | one client/period's report |
+| GET  | `/workspaces/{id}/clients/{client_id}/report/pdf?period=...&as_of=...&starting_balance=...` | executive PDF |
+| GET  | `/workspaces/{id}/clients/{client_id}/forecast?periods_ahead=3` | best/base/worst forecast |
+| GET  | `/workspaces/{id}/portfolio/forecast?periods_ahead=3` | forecast for the whole portfolio |
+| GET  | `/workspaces/{id}/clients/{client_id}/aging?type=ar\|ap&as_of=2026-06-30` | AR or AP aging |
+| GET  | `/workspaces/{id}/clients/{client_id}/cash-flow?starting_balance=...&as_of=...&weeks_ahead=13` | cash flow projection |
+| POST | `/workspaces/{id}/chat` | ask the conversational agent |
+| GET  | `/xero/connect` / `/xero/callback` | Xero OAuth2 consent flow |
+| POST | `/workspaces/{id}/xero/sync` | sync a client from Xero (real once connected, else simulated) |
+| POST | `/workspaces/{id}/quickbooks/sync` | sync a client from QuickBooks (simulated today) |
 
-Con el servidor corriendo, la documentación interactiva (Swagger) queda
-disponible en `http://127.0.0.1:8000/docs`.
+With the server running, interactive docs (Swagger) are available at
+`http://127.0.0.1:8000/docs`.
 
-## Próximos pasos
+## Live deployment
 
-1. El usuario consigue `ANTHROPIC_API_KEY` y hace el signup en Railway +
-   Vercel (código listo para ambos, ver `PROGRESS.md`).
-2. Validar tarifas y dolor real con 5-10 asesorías UK, mandando la URL
-   deployada en vez de pedir clonar el repo.
-3. Conector Xero (mapeo simulado ya construido, bloqueado por credenciales
-   OAuth reales).
-4. Conector QuickBooks (mapeo simulado ya construido, mismo bloqueo).
-5. Pulido visual del frontend (diseño, responsive, loading states) --
-   deliberadamente pospuesto hasta el final del proyecto.
+- Frontend: Vercel, custom domain `alphatense.com` / `www.alphatense.com`.
+- Backend: Railway, `api.alphatense.com`, with a persistent volume for the
+  SQLite database.
+- Both auto-deploy on push to `main`.
+
+## Next steps
+
+1. Validate pricing and real pain with 5-10 UK advisory firms — business
+   step, not code, now that there's a real URL with real accounts to send
+   instead of asking prospects to clone the repo.
+2. QuickBooks connector — data mapping already built, blocked on Intuit
+   developer OAuth credentials.
+3. Further visual/UX polish as real advisor feedback comes in (a proper
+   post-login dashboard, richer navigation, etc.) — deliberately scoped
+   incrementally rather than upfront.
