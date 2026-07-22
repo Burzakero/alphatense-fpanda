@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Download, MessageCircle, Upload } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, FileText, MessageCircle, Upload, Users } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { ApiError, createWorkspace, getPortfolioReport } from '../api/client'
 import { useAuth } from '../auth/context'
 import type { ClientReport } from '../types'
@@ -45,33 +46,38 @@ function GetStarted() {
         title="Welcome to Alphatense"
         subtitle="Let's load your first portfolio. Three steps: upload your data, we calculate KPIs, variance and forecast, then review it with your AI analyst."
       />
-      <form onSubmit={handleSubmit} className="flex w-full flex-col items-center gap-4">
-        <UploadDropzone file={file} onFileChange={setFile} />
-        <Button type="submit" disabled={!file || loading}>
-          {loading ? 'Uploading…' : 'Upload and view portfolio'}
-        </Button>
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      </form>
-      <p className="text-center text-xs text-slate-400">
-        Expected columns: client_id, period, scenario, account, category, amount
-      </p>
-      <a
-        href="/alphatense-sample-template.xlsx"
-        download
-        className="inline-flex items-center justify-center gap-2 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
-      >
-        <Download className="h-4 w-4" />
-        Download sample template (.xlsx)
-      </a>
+      <Card className="flex w-full flex-col items-center gap-4 p-6">
+        <form onSubmit={handleSubmit} className="flex w-full flex-col items-center gap-4">
+          <UploadDropzone file={file} onFileChange={setFile} />
+          <Button type="submit" disabled={!file || loading}>
+            {loading ? 'Uploading…' : 'Upload and view portfolio'}
+          </Button>
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </form>
+        <p className="text-center text-xs text-slate-400">
+          Expected columns: client_id, period, scenario, account, category, amount
+        </p>
+        <a
+          href="/alphatense-sample-template.xlsx"
+          download
+          className="inline-flex items-center justify-center gap-2 text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
+        >
+          <Download className="h-4 w-4" />
+          Download sample template (.xlsx)
+        </a>
+      </Card>
     </div>
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: number }) {
   return (
     <Card className="p-4">
-      <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-50">{value}</p>
+      <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+        <Icon className="h-4 w-4" strokeWidth={1.75} />
+        <p className="text-sm">{label}</p>
+      </div>
+      <p className="mt-1.5 text-2xl font-semibold tabular-nums text-slate-900 dark:text-slate-50">{value}</p>
     </Card>
   )
 }
@@ -129,10 +135,10 @@ function Dashboard({ workspaceId }: { workspaceId: string }) {
       />
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatCard label="Clients" value={clientCount} />
-        <StatCard label="Reports" value={reports.length} />
-        <StatCard label="Needs attention" value={needsAttention.length} />
-        <StatCard label="No material variance" value={reports.length - needsAttention.length} />
+        <StatCard icon={Users} label="Clients" value={clientCount} />
+        <StatCard icon={FileText} label="Reports" value={reports.length} />
+        <StatCard icon={AlertTriangle} label="Needs attention" value={needsAttention.length} />
+        <StatCard icon={CheckCircle2} label="No material variance" value={reports.length - needsAttention.length} />
       </div>
 
       <div className="mt-8">
@@ -147,7 +153,7 @@ function Dashboard({ workspaceId }: { workspaceId: string }) {
               <Link
                 key={`${report.client_id}-${report.period}`}
                 to={`/portfolio/${workspaceId}/clients/${report.client_id}?period=${report.period}`}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-400 dark:border-slate-700 dark:bg-slate-900"
+                className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-brand-400 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
               >
                 <span className="font-medium text-slate-800 dark:text-slate-100">
                   {report.client_id} <span className="text-slate-400">· {report.period}</span>
