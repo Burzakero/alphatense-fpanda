@@ -61,6 +61,14 @@ function App() {
         }
       />
       <Route
+        path="/portfolio/:workspaceId/clients/:clientId/:tab"
+        element={
+          <AppShell>
+            <ClientDetailPage />
+          </AppShell>
+        }
+      />
+      <Route
         path="/portfolio/:workspaceId/chat"
         element={
           <AppShell>
