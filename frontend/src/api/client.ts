@@ -54,11 +54,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export async function signup(name: string, email: string, password: string): Promise<Advisor> {
+export async function signup(name: string, email: string, password: string, phone: string): Promise<Advisor> {
   const result = await request<{ token: string; advisor: Advisor }>('/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, phone }),
   })
   setToken(result.token)
   return result.advisor

@@ -10,6 +10,7 @@ export function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -19,7 +20,7 @@ export function SignupPage() {
     setError(null)
     setLoading(true)
     try {
-      await signup(name, email, password)
+      await signup(name, email, password, phone)
       navigate('/home')
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create the account.')
@@ -61,12 +62,22 @@ export function SignupPage() {
             minLength={8}
             required
           />
+          <TextInput
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Mobile phone (e.g. +44 7700 900000)"
+            required
+          />
           <Button type="submit" disabled={loading} className="mt-1">
             {loading ? 'Creating account…' : 'Sign up'}
           </Button>
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </form>
       </Card>
+      <p className="text-center text-xs text-slate-400">
+        Starts a 15-day free trial — no credit card required.
+      </p>
       <p className="text-sm text-slate-500 dark:text-slate-400">
         Already have an account?{' '}
         <Link to="/login" className="text-brand-600 hover:underline dark:text-brand-400">

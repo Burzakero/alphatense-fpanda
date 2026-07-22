@@ -21,6 +21,10 @@ export function LoginPage() {
       await login(email, password)
       navigate('/home')
     } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        navigate('/trial-expired')
+        return
+      }
       setError(err instanceof ApiError ? err.message : 'Could not log in.')
     } finally {
       setLoading(false)
