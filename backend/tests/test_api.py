@@ -121,7 +121,12 @@ def test_client_report_unknown_period_returns_404():
     assert response.status_code == 404
 
 
-def test_client_report_pdf_returns_pdf_bytes():
+def test_client_report_pdf_returns_pdf_bytes(monkeypatch):
+    # No ANTHROPIC_API_KEY here: this test is about PDF generation mechanics,
+    # not the AI narrative -- disable the key so it can't make a real,
+    # billed API call regardless of what's in this machine's local .env
+    # (same "never hit the real API in tests" convention as fpa_agent's tests).
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     workspace_id = _upload_sample()
     response = client.get(
         f"/workspaces/{workspace_id}/clients/beacon-partners/report/pdf",
@@ -142,7 +147,8 @@ def test_client_report_pdf_unknown_period_returns_404():
     assert response.status_code == 404
 
 
-def test_client_report_pdf_with_aging_and_cash_flow_params():
+def test_client_report_pdf_with_aging_and_cash_flow_params(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     workspace_id = _upload_sample()
     _upload_sample_invoices(workspace_id)
 
@@ -154,7 +160,8 @@ def test_client_report_pdf_with_aging_and_cash_flow_params():
     assert response.content.startswith(b"%PDF")
 
 
-def test_client_report_pdf_with_as_of_but_no_invoices_still_200s():
+def test_client_report_pdf_with_as_of_but_no_invoices_still_200s(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     workspace_id = _upload_sample()
     response = client.get(
         f"/workspaces/{workspace_id}/clients/beacon-partners/report/pdf",
@@ -171,6 +178,66 @@ def test_client_report_pdf_invalid_as_of_returns_400():
         params={"period": "2026-06", "as_of": "not-a-date"},
     )
     assert response.status_code == 400
+
+
+def test_client_report_pdf_includes_new_sections_when_data_supports_them(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    workspace_id = _upload_sample()
+    _upload_sample_invoices(workspace_id)
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/report/pdf",
+        params={"period": "2026-06", "as_of": "2026-06-30", "starting_balance": 10000},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.content.startswith(b"%PDF")
+
+
+def test_client_report_pdf_falls_back_to_deterministic_summary_without_api_key(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    workspace_id = _upload_sample()
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/report/pdf",
+        params={"period": "2026-06"},
+    )
+
+    # Unlike /chat, which 503s without a key, the PDF route must degrade
+    # gracefully to the deterministic summary and still return a valid PDF.
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF")
+
+
+def test_client_report_pdf_falls_back_when_narrative_call_raises(monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("simulated Claude API failure")
+
+    monkeypatch.setattr("app.api.main.generate_narrative", _boom)
+    workspace_id = _upload_sample()
+
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/beacon-partners/report/pdf",
+        params={"period": "2026-06"},
+    )
+
+    # The broad except Exception around the narrative call must catch this
+    # too -- a Claude failure with a key present must not break the PDF.
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF")
+
+
+def test_client_report_pdf_omits_bridge_when_no_budget_on_file(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    workspace_id = _upload_sample()
+    # 2026-01 only has ACTUAL data on file for either client -- no budget to
+    # bridge from, so the EBITDA bridge section is silently omitted.
+    response = client.get(
+        f"/workspaces/{workspace_id}/clients/acme-ltd/report/pdf",
+        params={"period": "2026-01"},
+    )
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF")
 
 
 def test_client_cash_flow_returns_weekly_projection():

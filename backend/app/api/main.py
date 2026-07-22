@@ -15,6 +15,8 @@ call directly:
     GET  /workspaces/{workspace_id}/export/excel         -- multi-sheet .xlsx export of the whole portfolio
     GET  /workspaces/{workspace_id}/clients/{client_id}/report?period=...
     GET  /workspaces/{workspace_id}/clients/{client_id}/report/pdf?period=...&as_of=2026-06-30&starting_balance=50000
+                                                                    -- includes EBITDA bridge, 12-month trend, working
+                                                                       capital, and an AI executive narrative when available
     GET  /workspaces/{workspace_id}/clients/{client_id}/forecast?periods_ahead=3
     GET  /workspaces/{workspace_id}/portfolio/forecast?periods_ahead=3
     POST /workspaces/{workspace_id}/invoices                     -- attach an AR/AP invoices file
@@ -52,11 +54,13 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.agents.fpa_agent import AgentNotConfiguredError, ask
+from app.agents.narrative import generate_narrative
 from app.api.auth import _extract_token, get_current_advisor
 from app.db import repository
 from app.db.database import get_session, init_db
 from app.db.models import AdvisorAccount
 from app.engine.forecast import ForecastError
+from app.engine.trend import TrendError
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
 from app.ingestion.parser import IngestionError
@@ -404,14 +408,21 @@ def client_report_pdf(
     weeks_ahead: int = 13,
     workspace: Workspace = Depends(_get_workspace),
 ) -> Response:
-    """One-click executive PDF: KPIs + variance + forecast, plus aging and cash flow if requested.
+    """One-click executive PDF: KPIs, variance, EBITDA bridge, 12-month trend, forecast,
+    plus aging/cash-flow/working-capital if requested, plus an AI executive narrative
+    (summary + risks + opportunities) when ANTHROPIC_API_KEY is configured.
 
-    `as_of` (a real calendar date, unlike `period`) opts into the aging
-    section (if invoices are on file) and, combined with
-    `starting_balance`, the cash flow section. Omit both to get the same
-    PDF as before -- these sections are additive, not required. Auth for
-    this route accepts a `token` query param (see app/api/auth.py) since
-    the frontend renders this as a plain <a href> download link.
+    `as_of` (a real calendar date, unlike `period`) opts into the aging section (if
+    invoices are on file), working capital, and -- combined with `starting_balance` --
+    the cash flow section. Omit both to get a leaner PDF; these sections are additive,
+    not required. Auth for this route accepts a `token` query param (see
+    app/api/auth.py) since the frontend renders this as a plain <a href> download link.
+
+    The AI narrative is always attempted (no opt-in flag): any failure --
+    missing API key, network error, rate limit, malformed response -- falls
+    back to the deterministic executive summary rather than failing the
+    request. This route must never fail to produce a PDF because Claude had
+    a bad day.
     """
     report = workspace.build_client_report(client_id, period)
     if report is None:
@@ -425,8 +436,16 @@ def client_report_pdf(
     except ForecastError:
         forecast = None
 
+    bridge = workspace.build_ebitda_bridge(client_id, period)
+
+    try:
+        trend = workspace.build_trend(client_id)
+    except TrendError:
+        trend = None
+
     aging_reports: list = []
     cash_flow = None
+    working_capital = None
     if as_of is not None:
         try:
             as_of_date = date.fromisoformat(as_of)
@@ -445,7 +464,27 @@ def client_report_pdf(
                 client_id, starting_balance, as_of_date, weeks_ahead=weeks_ahead
             )
 
-    pdf_bytes = generate_client_pdf(report, forecast, aging_reports=aging_reports, cash_flow=cash_flow)
+        working_capital = workspace.build_working_capital(client_id, period, as_of_date)
+
+    try:
+        ai_narrative = generate_narrative(
+            report, forecast, bridge=bridge, trend=trend, working_capital=working_capital
+        )
+    except AgentNotConfiguredError:
+        ai_narrative = None
+    except Exception:
+        ai_narrative = None
+
+    pdf_bytes = generate_client_pdf(
+        report,
+        forecast,
+        aging_reports=aging_reports,
+        cash_flow=cash_flow,
+        bridge=bridge,
+        trend=trend,
+        working_capital=working_capital,
+        ai_narrative=ai_narrative,
+    )
     filename = f"{client_id}_{period}.pdf"
     return Response(
         content=pdf_bytes,

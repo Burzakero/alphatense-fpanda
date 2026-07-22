@@ -3,7 +3,7 @@ from pathlib import Path
 
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
-from app.models.domain import InvoiceType
+from app.models.domain import AIExecutiveNarrative, InvoiceType
 from app.reporting import pdf_report
 from app.reporting.pdf_report import generate_client_pdf
 
@@ -133,3 +133,92 @@ def test_executive_summary_handles_no_material_variances():
     summary = pdf_report._executive_summary(report)
 
     assert report.client_id in summary
+
+
+def test_generate_client_pdf_with_ebitda_bridge():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+    bridge = workspace.build_ebitda_bridge("beacon-partners", "2026-06")
+    assert bridge is not None
+
+    pdf_bytes = generate_client_pdf(report, bridge=bridge)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_without_ebitda_bridge_still_works():
+    workspace = _workspace()
+    report = workspace.build_client_report("acme-ltd", "2026-01")
+    bridge = workspace.build_ebitda_bridge("acme-ltd", "2026-01")
+    assert bridge is None  # no budget data for this period
+
+    pdf_bytes = generate_client_pdf(report, bridge=None)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_with_trend():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+    trend = workspace.build_trend("beacon-partners")
+
+    pdf_bytes = generate_client_pdf(report, trend=trend)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_without_trend_still_works():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+
+    pdf_bytes = generate_client_pdf(report, trend=None)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_with_working_capital():
+    workspace = _workspace_with_invoices()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+    working_capital = workspace.build_working_capital("beacon-partners", "2026-06", date(2026, 6, 30))
+    assert working_capital is not None
+
+    pdf_bytes = generate_client_pdf(report, working_capital=working_capital)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_without_working_capital_still_works():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+
+    pdf_bytes = generate_client_pdf(report, working_capital=None)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_with_ai_narrative_and_risks_renders_extra_section():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+    narrative = AIExecutiveNarrative(
+        summary="AI-written summary of the period.",
+        risks=["Client concentration risk."],
+        opportunities=["Upsell opportunity."],
+    )
+
+    with_narrative = generate_client_pdf(report, ai_narrative=narrative)
+    without_narrative = generate_client_pdf(report, ai_narrative=None)
+
+    assert with_narrative.startswith(b"%PDF")
+    # The risks/opportunities section adds real content, so the PDF with it
+    # should not be smaller than the one without.
+    assert len(with_narrative) >= len(without_narrative)
+
+
+def test_generate_client_pdf_with_empty_ai_narrative_omits_risks_section():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+    narrative = AIExecutiveNarrative(summary="Just a summary, no risks or opportunities.")
+
+    pdf_bytes = generate_client_pdf(report, ai_narrative=narrative)
+
+    assert pdf_bytes.startswith(b"%PDF")

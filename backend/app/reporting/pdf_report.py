@@ -18,7 +18,7 @@ from io import BytesIO
 from pathlib import Path
 
 from reportlab.graphics.charts.linecharts import HorizontalLineChart
-from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.shapes import Drawing, Line, Rect, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -28,7 +28,17 @@ from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Tabl
 
 from app.engine.variance import material_variances
 from app.engine.workspace import ClientReport
-from app.models.domain import AgingReport, CashFlowForecast, ForecastResult, Severity, VarianceResult
+from app.models.domain import (
+    AgingReport,
+    AIExecutiveNarrative,
+    CashFlowForecast,
+    ClientTrend,
+    EbitdaBridge,
+    ForecastResult,
+    Severity,
+    VarianceResult,
+    WorkingCapitalMetrics,
+)
 
 _HEADER_BG = colors.HexColor("#eef2ff")
 _GRID_COLOR = colors.HexColor("#e2e8f0")
@@ -119,6 +129,138 @@ def _variance_section(title: str, variances: list[VarianceResult], styles) -> li
     table.setStyle(_table_style())
     table.setStyle(_severity_row_style(variances))
     elements.append(table)
+    elements.append(Spacer(1, 12))
+    return elements
+
+
+def _risks_opportunities_section(narrative: AIExecutiveNarrative, styles) -> list:
+    elements: list = []
+    bullet_style = ParagraphStyle("bullet", parent=styles["BodyText"], fontSize=9, leading=12, leftIndent=10)
+    if narrative.risks:
+        elements.append(Paragraph("Key Risks", styles["Heading3"]))
+        for risk in narrative.risks:
+            elements.append(Paragraph(f"• {risk}", bullet_style))
+        elements.append(Spacer(1, 8))
+    if narrative.opportunities:
+        elements.append(Paragraph("Opportunities", styles["Heading3"]))
+        for opportunity in narrative.opportunities:
+            elements.append(Paragraph(f"• {opportunity}", bullet_style))
+        elements.append(Spacer(1, 8))
+    return elements
+
+
+def _ebitda_bridge_chart(bridge: EbitdaBridge) -> Drawing:
+    """Hand-drawn waterfall: reportlab's barcharts don't support floating bars, so each
+    step's cumulative (y0, y1) is computed manually and drawn as a Rect -- total steps
+    (Budget/Actual EBITDA) anchor at 0, delta steps float on the running total."""
+    bars: list[tuple[str, float, bool, float, float]] = []
+    running = 0.0
+    for step in bridge.steps:
+        if step.is_total:
+            y0, y1 = 0.0, step.value
+            running = step.value
+        else:
+            y0 = running
+            y1 = running + step.value
+            running = y1
+        bars.append((step.label, step.value, step.is_total, y0, y1))
+
+    all_vals = [v for bar in bars for v in (bar[3], bar[4])] + [0.0]
+    vmin, vmax = min(all_vals), max(all_vals)
+    vrange = (vmax - vmin) or 1.0
+
+    plot_x, plot_y, plot_w, plot_h = 40.0, 30.0, 400.0, 100.0
+    gap = plot_w / len(bars)
+    bar_w = gap * 0.6
+
+    def _y(v: float) -> float:
+        return plot_y + (v - vmin) / vrange * plot_h
+
+    drawing = Drawing(460, 160)
+    zero_px = _y(0.0)
+    drawing.add(Line(plot_x, zero_px, plot_x + plot_w, zero_px, strokeColor=colors.HexColor("#cbd5e1"), strokeWidth=0.5))
+
+    for i, (label, value, is_total, y0, y1) in enumerate(bars):
+        x = plot_x + i * gap + (gap - bar_w) / 2
+        y_bottom, y_top = _y(min(y0, y1)), _y(max(y0, y1))
+        if is_total:
+            fill = colors.HexColor(_SCENARIO_HEX["base"])
+        elif value >= 0:
+            fill = colors.HexColor(_SCENARIO_HEX["best"])
+        else:
+            fill = colors.HexColor(_SCENARIO_HEX["worst"])
+        drawing.add(Rect(x, y_bottom, bar_w, max(y_top - y_bottom, 1.2), fillColor=fill, strokeColor=None))
+        drawing.add(String(x + bar_w / 2, y_top + 4, _currency(value), fontSize=7, textAnchor="middle"))
+        drawing.add(String(x + bar_w / 2, plot_y - 14, label, fontSize=7, textAnchor="middle"))
+
+    return drawing
+
+
+def _ebitda_bridge_section(bridge: EbitdaBridge, styles) -> list:
+    elements: list = [Paragraph("EBITDA Bridge (Budget → Actual)", styles["Heading2"])]
+    elements.append(_ebitda_bridge_chart(bridge))
+    elements.append(Spacer(1, 6))
+    narrative_style = ParagraphStyle("bridge_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
+    elements.append(Paragraph(bridge.narrative, narrative_style))
+    elements.append(Spacer(1, 16))
+    return elements
+
+
+def _trend_chart(periods: list[str], values: list[float], value_format: str) -> Drawing:
+    drawing = Drawing(180, 100)
+    chart = HorizontalLineChart()
+    chart.x, chart.y = 30, 22
+    chart.width, chart.height = 140, 62
+    chart.categoryAxis.categoryNames = periods
+    chart.categoryAxis.labels.fontSize = 5
+    chart.valueAxis.labelTextFormat = value_format
+    chart.valueAxis.labels.fontSize = 5
+    chart.data = [values]
+    chart.lines[0].strokeColor = colors.HexColor(_SCENARIO_HEX["base"])
+    chart.lines[0].strokeWidth = 1.3
+    drawing.add(chart)
+    return drawing
+
+
+def _trend_section(trend: ClientTrend, styles) -> list:
+    elements: list = [Paragraph("12-Month Trend", styles["Heading2"])]
+    revenue = [p.revenue for p in trend.points]
+    ebitda = [p.ebitda for p in trend.points]
+    margin = [p.net_margin_pct or 0.0 for p in trend.points]
+
+    heading_style = ParagraphStyle("trend_heading", parent=styles["BodyText"], fontSize=8, alignment=1)
+    grid = [
+        [Paragraph("Revenue", heading_style), Paragraph("EBITDA", heading_style), Paragraph("Net Margin %", heading_style)],
+        [
+            _trend_chart(trend.periods, revenue, "£%0.0f"),
+            _trend_chart(trend.periods, ebitda, "£%0.0f"),
+            _trend_chart(trend.periods, margin, "%0.0f%%"),
+        ],
+    ]
+    table = Table(grid, colWidths=[160, 160, 160])
+    table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("ALIGN", (0, 0), (-1, -1), "CENTER")]))
+    elements.append(table)
+    elements.append(Spacer(1, 6))
+    narrative_style = ParagraphStyle("trend_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
+    elements.append(Paragraph(trend.narrative, narrative_style))
+    elements.append(Spacer(1, 16))
+    return elements
+
+
+def _working_capital_section(working_capital: WorkingCapitalMetrics, styles) -> list:
+    elements: list = [Paragraph("Working Capital", styles["Heading2"])]
+    rows = [
+        ["Metric", "Value"],
+        ["DSO (Days Sales Outstanding)", f"{working_capital.dso:.1f} days" if working_capital.dso is not None else "—"],
+        ["DPO (Days Payable Outstanding)", f"{working_capital.dpo:.1f} days" if working_capital.dpo is not None else "—"],
+        ["Cash Conversion Cycle", f"{working_capital.ccc:.1f} days" if working_capital.ccc is not None else "—"],
+    ]
+    table = Table(rows, colWidths=[250, 100])
+    table.setStyle(_table_style())
+    elements.append(table)
+    elements.append(Spacer(1, 6))
+    narrative_style = ParagraphStyle("wc_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
+    elements.append(Paragraph(working_capital.narrative, narrative_style))
     elements.append(Spacer(1, 12))
     return elements
 
@@ -255,14 +397,23 @@ def generate_client_pdf(
     forecast: list[ForecastResult] | None = None,
     aging_reports: list[AgingReport] | None = None,
     cash_flow: CashFlowForecast | None = None,
+    bridge: EbitdaBridge | None = None,
+    trend: ClientTrend | None = None,
+    working_capital: WorkingCapitalMetrics | None = None,
+    ai_narrative: AIExecutiveNarrative | None = None,
 ) -> bytes:
     """Render one client/period's executive report to PDF bytes.
 
-    `forecast`, `aging_reports`, and `cash_flow` are all optional and each
-    section is simply omitted when its data isn't available or wasn't
-    requested -- a client with fewer than 2 actual periods on file has no
-    trend to project, aging needs invoices on file, and cash flow needs an
-    advisor-supplied starting balance.
+    `forecast`, `aging_reports`, `cash_flow`, `bridge`, `trend`, and
+    `working_capital` are all optional and each section is simply omitted
+    when its data isn't available or wasn't requested -- a client with
+    fewer than 2 actual periods on file has no trend to project, aging
+    needs invoices on file, cash flow needs an advisor-supplied starting
+    balance, and the EBITDA bridge needs both actual and budget data for
+    the period. `ai_narrative`, if provided, replaces the deterministic
+    executive summary and adds a Risks/Opportunities section -- the caller
+    (the API route) is responsible for generating it and falling back to
+    None on any failure; this function never calls out to an LLM itself.
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -292,8 +443,13 @@ def generate_client_pdf(
     summary_style = ParagraphStyle(
         "executive_summary", parent=styles["BodyText"], fontSize=9.5, leading=13
     )
-    elements.append(Paragraph(_executive_summary(report), summary_style))
-    elements.append(Spacer(1, 16))
+    summary_text = ai_narrative.summary if ai_narrative is not None else _executive_summary(report)
+    elements.append(Paragraph(summary_text, summary_style))
+    elements.append(Spacer(1, 8))
+
+    if ai_narrative is not None and (ai_narrative.risks or ai_narrative.opportunities):
+        elements += _risks_opportunities_section(ai_narrative, styles)
+    elements.append(Spacer(1, 8))
 
     kpis = report.actual_kpis
     elements.append(Paragraph("Period KPIs", styles["Heading2"]))
@@ -309,8 +465,14 @@ def generate_client_pdf(
     elements.append(kpi_table)
     elements.append(Spacer(1, 16))
 
+    if bridge is not None:
+        elements += _ebitda_bridge_section(bridge, styles)
+
     elements += _variance_section("Actual vs Budget", report.variances_vs_budget, styles)
     elements += _variance_section("Actual vs Prior", report.variances_vs_prior, styles)
+
+    if trend is not None:
+        elements += _trend_section(trend, styles)
 
     if forecast:
         elements += _forecast_section(forecast, styles)
@@ -318,6 +480,9 @@ def generate_client_pdf(
 
     if aging_reports:
         elements += _aging_section(aging_reports, styles)
+
+    if working_capital is not None:
+        elements += _working_capital_section(working_capital, styles)
 
     if cash_flow is not None:
         elements += _cash_flow_section(cash_flow, styles)
