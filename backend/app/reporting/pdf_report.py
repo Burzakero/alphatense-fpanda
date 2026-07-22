@@ -15,18 +15,29 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+from pathlib import Path
 
+from reportlab.graphics.charts.linecharts import HorizontalLineChart
+from reportlab.graphics.shapes import Drawing
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.pdfgen.canvas import Canvas
+from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.engine.variance import material_variances
 from app.engine.workspace import ClientReport
-from app.models.domain import AgingReport, CashFlowForecast, ForecastResult, VarianceResult
+from app.models.domain import AgingReport, CashFlowForecast, ForecastResult, Severity, VarianceResult
 
 _HEADER_BG = colors.HexColor("#eef2ff")
 _GRID_COLOR = colors.HexColor("#e2e8f0")
+_HIGH_BG = colors.HexColor("#fee2e2")
+_MEDIUM_BG = colors.HexColor("#fef3c7")
+_FOOTER_COLOR = colors.HexColor("#94a3b8")
+_LOGO_PATH = Path(__file__).parent / "assets" / "logo.png"
+
+_SCENARIO_HEX = {"best": "#059669", "base": "#1b69b0", "worst": "#dc2626"}
 
 
 def _currency(value: float) -> str:
@@ -54,6 +65,36 @@ def _table_style(header_rows: int = 1) -> TableStyle:
     )
 
 
+def _severity_row_style(variances: list[VarianceResult], header_rows: int = 1) -> TableStyle:
+    """Highlight HIGH/MEDIUM severity rows -- plain-text "HIGH" alone has no visual weight."""
+    commands = []
+    for i, v in enumerate(variances):
+        row = header_rows + i
+        if v.severity == Severity.HIGH:
+            commands.append(("BACKGROUND", (0, row), (-1, row), _HIGH_BG))
+        elif v.severity == Severity.MEDIUM:
+            commands.append(("BACKGROUND", (0, row), (-1, row), _MEDIUM_BG))
+    return TableStyle(commands)
+
+
+def _executive_summary(report: ClientReport) -> str:
+    """Compose a 2-3 sentence summary from data already on the report -- no AI call, so
+    generation stays deterministic, fast, and testable (same engine/agent split as the
+    rest of the codebase, see CLAUDE.md)."""
+    kpis = report.actual_kpis
+    sentences = [
+        f"{report.client_id} generated {_currency(kpis.revenue)} in revenue for {report.period}, "
+        f"with net income of {_currency(kpis.net_income)} ({_pct(kpis.net_margin_pct)} margin)."
+    ]
+    top_movers = material_variances(report.variances_vs_budget) or material_variances(
+        report.variances_vs_prior
+    )
+    if top_movers:
+        biggest = max(top_movers, key=lambda v: abs(v.delta_pct or 0))
+        sentences.append(biggest.narrative)
+    return " ".join(sentences)
+
+
 def _variance_section(title: str, variances: list[VarianceResult], styles) -> list:
     elements: list = [Paragraph(title, styles["Heading3"])]
     if not variances:
@@ -74,15 +115,50 @@ def _variance_section(title: str, variances: list[VarianceResult], styles) -> li
                 Paragraph(v.narrative, narrative_style),
             ]
         )
-    table = Table(rows, colWidths=[65, 55, 60, 80, 30, 187], repeatRows=1)
+    table = Table(rows, colWidths=[65, 55, 60, 75, 45, 177], repeatRows=1)
     table.setStyle(_table_style())
+    table.setStyle(_severity_row_style(variances))
     elements.append(table)
     elements.append(Spacer(1, 12))
     return elements
 
 
+def _forecast_chart(forecast: list[ForecastResult]) -> Drawing:
+    periods = sorted({f.period for f in forecast})
+    by_scenario: dict[str, dict[str, float]] = {}
+    for f in forecast:
+        by_scenario.setdefault(f.scenario.value, {})[f.period] = f.net_income
+    scenarios = [s for s in ("best", "base", "worst") if s in by_scenario]
+
+    drawing = Drawing(450, 160)
+    chart = HorizontalLineChart()
+    chart.x, chart.y = 45, 30
+    chart.width, chart.height = 390, 115
+    chart.categoryAxis.categoryNames = periods
+    chart.categoryAxis.labels.fontSize = 7
+    chart.valueAxis.labelTextFormat = "£%0.0f"
+    chart.valueAxis.labels.fontSize = 7
+    chart.data = [[by_scenario[s].get(p, 0) for p in periods] for s in scenarios]
+    for i, s in enumerate(scenarios):
+        chart.lines[i].strokeColor = colors.HexColor(_SCENARIO_HEX[s])
+        chart.lines[i].strokeWidth = 1.5
+    drawing.add(chart)
+    return drawing
+
+
 def _forecast_section(forecast: list[ForecastResult], styles) -> list:
     elements: list = [Paragraph("Forecast (best / base / worst)", styles["Heading2"])]
+    legend_style = ParagraphStyle("forecast_legend", parent=styles["BodyText"], fontSize=8)
+    legend = "&nbsp;&nbsp;&nbsp;".join(
+        f'<font color="{_SCENARIO_HEX[s]}">●</font> {s.title()}'
+        for s in ("best", "base", "worst")
+        if any(f.scenario.value == s for f in forecast)
+    )
+    elements.append(Paragraph(legend, legend_style))
+    elements.append(Spacer(1, 4))
+    elements.append(_forecast_chart(forecast))
+    elements.append(Spacer(1, 8))
+
     narrative_style = ParagraphStyle("forecast_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
     rows = [["Period", "Scenario", "Net income", "Assumptions"]]
     for f in forecast:
@@ -118,10 +194,33 @@ def _aging_section(aging_reports: list[AgingReport], styles) -> list:
     return elements
 
 
+def _cash_flow_chart(cash_flow: CashFlowForecast) -> Drawing:
+    weeks = [str(w.week_start) for w in cash_flow.weeks]
+    balances = [w.ending_balance for w in cash_flow.weeks]
+
+    drawing = Drawing(450, 170)
+    chart = HorizontalLineChart()
+    chart.x, chart.y = 45, 40
+    chart.width, chart.height = 390, 115
+    chart.categoryAxis.categoryNames = weeks
+    chart.categoryAxis.labels.fontSize = 6
+    chart.categoryAxis.labels.angle = 45
+    chart.categoryAxis.labels.dy = -8
+    chart.valueAxis.labelTextFormat = "£%0.0f"
+    chart.valueAxis.labels.fontSize = 7
+    chart.data = [balances]
+    chart.lines[0].strokeColor = colors.HexColor(_SCENARIO_HEX["base"])
+    chart.lines[0].strokeWidth = 1.5
+    drawing.add(chart)
+    return drawing
+
+
 def _cash_flow_section(cash_flow: CashFlowForecast, styles) -> list:
     elements: list = [
         Paragraph(f"Projected Cash Flow ({len(cash_flow.weeks)} weeks)", styles["Heading2"]),
     ]
+    elements.append(_cash_flow_chart(cash_flow))
+    elements.append(Spacer(1, 8))
     rows = [["Week", "AR", "AP", "Net", "Balance"]]
     for w in cash_flow.weeks:
         rows.append(
@@ -140,6 +239,15 @@ def _cash_flow_section(cash_flow: CashFlowForecast, styles) -> list:
     narrative_style = ParagraphStyle("cash_flow_narrative", parent=styles["BodyText"], fontSize=8, leading=10)
     elements.append(Paragraph(cash_flow.narrative, narrative_style))
     return elements
+
+
+def _draw_footer(canvas: Canvas, doc: SimpleDocTemplate) -> None:
+    canvas.saveState()
+    canvas.setFont("Helvetica", 8)
+    canvas.setFillColor(_FOOTER_COLOR)
+    canvas.drawString(1.5 * cm, 1 * cm, "Alphatense — Confidential")
+    canvas.drawRightString(A4[0] - 1.5 * cm, 1 * cm, f"Page {doc.page}")
+    canvas.restoreState()
 
 
 def generate_client_pdf(
@@ -162,17 +270,29 @@ def generate_client_pdf(
         pagesize=A4,
         title=f"{report.client_id} {report.period}",
         topMargin=1.5 * cm,
-        bottomMargin=1.5 * cm,
+        bottomMargin=1.8 * cm,
         leftMargin=1.5 * cm,
         rightMargin=1.5 * cm,
     )
     styles = getSampleStyleSheet()
     elements: list = []
 
+    if _LOGO_PATH.exists():
+        logo = Image(str(_LOGO_PATH), width=1.3 * cm, height=1.3 * cm)
+        logo.hAlign = "LEFT"
+        elements.append(logo)
+        elements.append(Spacer(1, 6))
+
     elements.append(Paragraph(f"Executive Report — {report.client_id}", styles["Title"]))
     elements.append(Paragraph(f"Period: {report.period}", styles["Normal"]))
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     elements.append(Paragraph(f"Generated: {generated_at}", styles["Normal"]))
+    elements.append(Spacer(1, 10))
+
+    summary_style = ParagraphStyle(
+        "executive_summary", parent=styles["BodyText"], fontSize=9.5, leading=13
+    )
+    elements.append(Paragraph(_executive_summary(report), summary_style))
     elements.append(Spacer(1, 16))
 
     kpis = report.actual_kpis
@@ -202,5 +322,5 @@ def generate_client_pdf(
     if cash_flow is not None:
         elements += _cash_flow_section(cash_flow, styles)
 
-    doc.build(elements)
+    doc.build(elements, onFirstPage=_draw_footer, onLaterPages=_draw_footer)
     return buffer.getvalue()

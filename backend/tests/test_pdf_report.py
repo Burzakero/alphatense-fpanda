@@ -4,6 +4,7 @@ from pathlib import Path
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
 from app.models.domain import InvoiceType
+from app.reporting import pdf_report
 from app.reporting.pdf_report import generate_client_pdf
 
 SAMPLE_CSV = Path(__file__).resolve().parents[1] / "sample_data" / "sample_financials.csv"
@@ -77,3 +78,58 @@ def test_generate_client_pdf_without_aging_or_cash_flow_still_works():
     pdf_bytes = generate_client_pdf(report)
 
     assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_logo_asset_exists_in_repo():
+    # The PDF can't reach frontend/public at runtime (Railway's deploy root is
+    # backend/), so the brand logo must be its own committed copy.
+    assert pdf_report._LOGO_PATH.exists()
+
+
+def test_generate_client_pdf_without_logo_file_still_works(monkeypatch):
+    monkeypatch.setattr(pdf_report, "_LOGO_PATH", Path("/nonexistent/logo.png"))
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+
+    pdf_bytes = generate_client_pdf(report)
+
+    assert pdf_bytes.startswith(b"%PDF")
+
+
+def test_generate_client_pdf_with_full_cash_flow_horizon():
+    # Default weeks_ahead=13 stresses the chart's angled weekly category labels.
+    workspace = _workspace_with_invoices()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+    as_of = date(2026, 6, 30)
+    cash_flow = workspace.build_cash_flow_forecast("beacon-partners", 10000, as_of)
+
+    pdf_bytes = generate_client_pdf(report, cash_flow=cash_flow)
+
+    assert pdf_bytes.startswith(b"%PDF")
+    assert len(cash_flow.weeks) == 13
+
+
+def test_executive_summary_mentions_biggest_variance():
+    workspace = _workspace()
+    report = workspace.build_client_report("beacon-partners", "2026-06")
+
+    summary = pdf_report._executive_summary(report)
+
+    top_movers = pdf_report.material_variances(report.variances_vs_budget) or pdf_report.material_variances(
+        report.variances_vs_prior
+    )
+    assert top_movers, "fixture period should have at least one material variance"
+    biggest = max(top_movers, key=lambda v: abs(v.delta_pct or 0))
+    assert biggest.narrative in summary
+    assert report.client_id in summary
+
+
+def test_executive_summary_handles_no_material_variances():
+    workspace = _workspace()
+    report = workspace.build_client_report("acme-ltd", "2026-01")
+    assert report.variances_vs_budget == []
+    assert report.variances_vs_prior == []
+
+    summary = pdf_report._executive_summary(report)
+
+    assert report.client_id in summary
