@@ -259,3 +259,85 @@ class CashFlowForecast(BaseModel):
     starting_balance: float
     weeks: list[CashFlowWeek]
     narrative: str
+
+
+class EbitdaBridgeStep(BaseModel):
+    """One bar in the EBITDA bridge waterfall: a budget/actual anchor total, or a category delta."""
+
+    label: str
+    value: float
+    is_total: bool
+
+
+class EbitdaBridge(BaseModel):
+    """Budget -> Actual EBITDA walk for one client/period, decomposed by Revenue/COGS/Opex deltas.
+
+    Only meaningful when both an ACTUAL and a BUDGET FinancialStatement
+    exist for the period -- see Workspace.build_ebitda_bridge, which
+    returns None otherwise (same convention as build_aging_report).
+    """
+
+    client_id: str
+    period: str
+    budget_ebitda: float
+    actual_ebitda: float
+    steps: list[EbitdaBridgeStep]
+    narrative: str
+
+
+class ClientTrendPoint(BaseModel):
+    """One period's headline KPIs, for trend charting."""
+
+    period: str
+    revenue: float
+    ebitda: float
+    net_margin_pct: Optional[float]
+
+
+class ClientTrend(BaseModel):
+    """Revenue/EBITDA/net-margin trend across a client's actual periods on file (most recent N)."""
+
+    client_id: str
+    periods: list[str]
+    points: list[ClientTrendPoint]
+    narrative: str
+
+
+class WorkingCapitalMetrics(BaseModel):
+    """DSO / DPO / Cash Conversion Cycle for one client/period, as of a given date.
+
+    Deliberately excludes a DIO (inventory) term -- this is a services-
+    business product and the domain model has no inventory data at all,
+    the same class of scope limitation as CashFlowForecast's excluded opex
+    run-rate. `days_in_period` is a fixed assumption (default 30), not
+    derived from the calendar length of `period`. `ar_outstanding` /
+    `ap_outstanding` are read as the current balance on file, not a
+    reconstructed historical snapshot as of `as_of` -- Invoice has no
+    paid-date field, so this is only precise when `as_of` is at/after the
+    data's last update. Both limitations are spelled out in `narrative`.
+    """
+
+    client_id: str
+    period: str
+    as_of: date
+    ar_outstanding: float
+    ap_outstanding: float
+    days_in_period: int
+    dso: Optional[float]
+    dpo: Optional[float]
+    ccc: Optional[float]
+    narrative: str
+
+
+class AIExecutiveNarrative(BaseModel):
+    """AI-generated (Claude) executive summary + risks + opportunities for the PDF report.
+
+    Produced by app/agents/narrative.py's one-shot generate_narrative() call
+    in the API route layer -- never computed inside reporting/pdf_report.py,
+    which must stay a pure function. On any failure the route falls back to
+    the deterministic _executive_summary() with empty risks/opportunities.
+    """
+
+    summary: str
+    risks: list[str] = Field(default_factory=list)
+    opportunities: list[str] = Field(default_factory=list)

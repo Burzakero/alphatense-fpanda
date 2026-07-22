@@ -1,6 +1,9 @@
 from datetime import date
 from pathlib import Path
 
+import pytest
+
+from app.engine.trend import TrendError
 from app.engine.workspace import Workspace
 from app.ingestion.invoices import load_invoices
 from app.models.domain import FinancialStatement, InvoiceType, LineItem, Scenario, Severity, AccountCategory
@@ -111,3 +114,65 @@ def test_add_statements_makes_new_client_available():
     report = ws.build_client_report("xero-demo-co", "2026-06")
     assert report is not None
     assert report.actual_kpis.revenue == 1000
+
+
+def test_build_ebitda_bridge_returns_none_without_budget_data():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    # 2026-01 only has an ACTUAL scenario on file for either client (see
+    # test_portfolio_report_covers_every_client) -- no budget to bridge from.
+    assert ws.build_ebitda_bridge("acme-ltd", "2026-01") is None
+
+
+def test_build_ebitda_bridge_for_period_with_budget_data():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    bridge = ws.build_ebitda_bridge("beacon-partners", "2026-06")
+
+    assert bridge is not None
+    assert bridge.client_id == "beacon-partners"
+    assert bridge.period == "2026-06"
+    deltas = sum(s.value for s in bridge.steps if not s.is_total)
+    assert bridge.budget_ebitda + deltas == bridge.actual_ebitda
+
+
+def test_build_trend_raises_for_a_fresh_single_period_client():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    ws.add_statements(
+        [
+            FinancialStatement(
+                client_id="brand-new-co", period="2026-06", scenario=Scenario.ACTUAL,
+                line_items=[
+                    LineItem(
+                        client_id="brand-new-co", period="2026-06", scenario=Scenario.ACTUAL,
+                        account="Sales", category=AccountCategory.REVENUE, amount=1000,
+                    )
+                ],
+            )
+        ]
+    )
+
+    with pytest.raises(TrendError):
+        ws.build_trend("brand-new-co")
+
+
+def test_build_trend_for_client_with_history():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    trend = ws.build_trend("acme-ltd")
+
+    assert trend.client_id == "acme-ltd"
+    assert trend.periods == ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"]
+
+
+def test_build_working_capital_returns_none_without_invoices():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    assert ws.build_working_capital("beacon-partners", "2026-06", date(2026, 6, 30)) is None
+
+
+def test_build_working_capital_after_adding_invoices():
+    ws = Workspace.from_file(SAMPLE_CSV)
+    ws.add_invoices(load_invoices(SAMPLE_INVOICES_CSV))
+
+    metrics = ws.build_working_capital("beacon-partners", "2026-06", date(2026, 6, 30))
+
+    assert metrics is not None
+    assert metrics.client_id == "beacon-partners"
+    assert metrics.dso is not None

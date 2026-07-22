@@ -21,13 +21,19 @@ from pathlib import Path
 
 from app.engine.aging import calculate_aging
 from app.engine.cash_flow import project_cash_flow
+from app.engine.ebitda_bridge import calculate_ebitda_bridge
 from app.engine.forecast import ForecastError, generate_forecast
 from app.engine.kpis import calculate_kpis
+from app.engine.trend import build_client_trend
 from app.engine.variance import analyze_variance
+from app.engine.working_capital import calculate_working_capital
 from app.ingestion.parser import load_financial_statements
 from app.models.domain import (
+    AccountCategory,
     AgingReport,
     CashFlowForecast,
+    ClientTrend,
+    EbitdaBridge,
     FinancialStatement,
     ForecastResult,
     Invoice,
@@ -35,6 +41,7 @@ from app.models.domain import (
     KPISet,
     Scenario,
     VarianceResult,
+    WorkingCapitalMetrics,
 )
 
 
@@ -210,3 +217,43 @@ class Workspace:
         """
         matching = [inv for inv in self._invoices if inv.client_id == client_id]
         return project_cash_flow(client_id, matching, starting_balance, as_of, weeks_ahead=weeks_ahead)
+
+    def build_ebitda_bridge(self, client_id: str, period: str) -> EbitdaBridge | None:
+        """Budget -> Actual EBITDA walk for one client/period, or None if either the
+        actual or the budget statement is missing for that period."""
+        actual_stmt = self._statement(client_id, period, Scenario.ACTUAL)
+        budget_stmt = self._statement(client_id, period, Scenario.BUDGET)
+        if actual_stmt is None or budget_stmt is None:
+            return None
+        return calculate_ebitda_bridge(actual_stmt, budget_stmt)
+
+    def build_trend(self, client_id: str, max_periods: int = 12) -> ClientTrend:
+        """Revenue/EBITDA/net-margin trend across a client's actual periods on file.
+
+        Raises TrendError (via the trend engine) if fewer than 2 actual
+        periods are on file -- same "let the caller decide how to degrade"
+        convention as build_forecast/ForecastError.
+        """
+        history = self.client_history(client_id)
+        return build_client_trend(client_id, history, max_periods=max_periods)
+
+    def build_working_capital(
+        self, client_id: str, period: str, as_of: date, days_in_period: int = 30
+    ) -> WorkingCapitalMetrics | None:
+        """DSO/DPO/CCC for one client/period, or None if there's no actual statement for
+        that period or no invoices at all on file for the client."""
+        actual_stmt = self._statement(client_id, period, Scenario.ACTUAL)
+        if actual_stmt is None:
+            return None
+        matching = [inv for inv in self._invoices if inv.client_id == client_id]
+        if not matching:
+            return None
+        return calculate_working_capital(
+            client_id,
+            period,
+            matching,
+            actual_stmt.total(AccountCategory.REVENUE),
+            actual_stmt.total(AccountCategory.COGS),
+            as_of,
+            days_in_period,
+        )
