@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { MessageCircle, Upload } from 'lucide-react'
+import { Download, MessageCircle, Upload } from 'lucide-react'
 import { ApiError, createWorkspace, getPortfolioReport } from '../api/client'
 import { useAuth } from '../auth/context'
 import type { ClientReport } from '../types'
@@ -55,6 +55,14 @@ function GetStarted() {
       <p className="text-center text-xs text-slate-400">
         Expected columns: client_id, period, scenario, account, category, amount
       </p>
+      <a
+        href="/alphatense-sample-template.xlsx"
+        download
+        className="inline-flex items-center justify-center gap-1.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+      >
+        <Download className="h-3.5 w-3.5" />
+        Download sample template (.xlsx)
+      </a>
     </div>
   )
 }

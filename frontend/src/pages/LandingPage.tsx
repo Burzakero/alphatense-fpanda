@@ -94,8 +94,8 @@ export function LandingPage() {
           The FP&amp;A copilot for financial advisory firms
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-lg text-slate-600 dark:text-slate-400">
-          A senior financial analyst available 24/7, on top of every client&apos;s accounting system — so your firm
-          manages dozens of clients from a single dashboard, without building spreadsheets by hand.
+          Purpose-built AI for financial advisory workflows — KPIs, variance and forecasts for every client,
+          without building spreadsheets by hand.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <ButtonLink href="/signup" size="md">

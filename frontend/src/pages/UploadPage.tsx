@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { ApiError, createWorkspace } from '../api/client'
 import { Button } from '../components/ui/Button'
 import { PageHeading } from '../components/ui/PageHeading'
@@ -45,6 +46,14 @@ export function UploadPage() {
       <p className="text-xs text-slate-400">
         Expected columns: client_id, period, scenario, account, category, amount
       </p>
+      <a
+        href="/alphatense-sample-template.xlsx"
+        download
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+      >
+        <Download className="h-3.5 w-3.5" />
+        Download sample template (.xlsx)
+      </a>
     </div>
   )
 }
