@@ -12,6 +12,7 @@ call directly:
     POST /workspaces                                    -- upload a file, get a workspace_id back
     GET  /workspaces/{workspace_id}/clients              -- list client ids found in the file
     GET  /workspaces/{workspace_id}/portfolio            -- KPIs + variance for every client/period
+    GET  /workspaces/{workspace_id}/export/excel         -- multi-sheet .xlsx export of the whole portfolio
     GET  /workspaces/{workspace_id}/clients/{client_id}/report?period=...
     GET  /workspaces/{workspace_id}/clients/{client_id}/report/pdf?period=...&as_of=2026-06-30&starting_balance=50000
     GET  /workspaces/{workspace_id}/clients/{client_id}/forecast?periods_ahead=3
@@ -65,6 +66,7 @@ from app.integrations.xero import oauth
 from app.integrations.xero.client import FakeXeroClient, RealXeroClient
 from app.integrations.xero.sync import sync_client_from_xero
 from app.models.domain import InvoiceType
+from app.reporting.data_export import generate_portfolio_workbook
 from app.reporting.pdf_report import generate_client_pdf
 
 
@@ -364,6 +366,21 @@ def portfolio_report(workspace: Workspace = Depends(_get_workspace)) -> list[dic
     client in their portfolio at once.
     """
     return [report.to_dict() for report in workspace.build_portfolio_report()]
+
+
+@app.get("/workspaces/{workspace_id}/export/excel")
+def export_portfolio_excel(workspace: Workspace = Depends(_get_workspace)) -> Response:
+    """Multi-sheet .xlsx export of the whole portfolio (Line Items, KPIs, Variance,
+    Forecast, Invoices), for advisors who want to build their own charts/pivots in
+    Power BI or Excel. Auth accepts a `token` query param (see app/api/auth.py) since
+    the frontend renders this as a plain <a href> download link, same as the PDF route.
+    """
+    workbook_bytes = generate_portfolio_workbook(workspace)
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="alphatense_portfolio_export.xlsx"'},
+    )
 
 
 @app.get("/workspaces/{workspace_id}/clients/{client_id}/report")
