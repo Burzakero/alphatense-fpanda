@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ButtonLink } from '../ui/Button'
+import { LogoMark } from '../layout/LogoMark'
 
 const NAV_LINKS = [
   { href: '#capabilities', label: 'Product' },
@@ -27,8 +28,8 @@ export function Header() {
       }`}
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-        <Link to="/" className="flex items-center gap-2">
-          <img src="/logo-mark-192.png" alt="" className="h-8 w-8" />
+        <Link to="/" className="group flex items-center gap-2">
+          <LogoMark />
           <span translate="no" className="notranslate text-lg font-semibold text-white">
             Alphatense
           </span>

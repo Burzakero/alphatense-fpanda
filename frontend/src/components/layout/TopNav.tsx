@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { logout } from '../../api/client'
 import { useAuth } from '../../auth/context'
+import { LogoMark } from './LogoMark'
 
 export function TopNav() {
   const { advisor } = useAuth()
@@ -21,8 +22,8 @@ export function TopNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-brand-950">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-4 py-3">
-        <Link to="/home" className="flex items-center gap-2">
-          <img src="/logo-mark-192.png" alt="" className="h-8 w-8" />
+        <Link to="/home" className="group flex items-center gap-2">
+          <LogoMark />
           <span translate="no" className="notranslate text-lg font-semibold tracking-tight text-white">
             Alphatense
           </span>
