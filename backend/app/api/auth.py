@@ -22,7 +22,9 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_session
 from app.db.models import AdvisorAccount
-from app.db.repository import get_advisor_by_token
+from app.db.repository import get_advisor_by_token, is_trial_expired
+
+TRIAL_EXPIRED_DETAIL = "Your 15-day trial has ended. Contact us to keep using Alphatense."
 
 
 def _extract_token(request: Request) -> str:
@@ -40,4 +42,9 @@ def get_current_advisor(request: Request, db: Session = Depends(get_session)) ->
     advisor = get_advisor_by_token(db, token)
     if advisor is None:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
+    if is_trial_expired(advisor):
+        # 403, not 401 -- the token itself is valid, the account just can't act on
+        # it anymore. Unused elsewhere in this API, so the frontend can key off
+        # the status code alone with no ambiguity (see RequireAuth.tsx).
+        raise HTTPException(status_code=403, detail=TRIAL_EXPIRED_DETAIL)
     return advisor

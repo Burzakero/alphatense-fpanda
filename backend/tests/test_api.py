@@ -12,7 +12,12 @@ client = TestClient(app)
 # token, so the rest of this file's test bodies stay unchanged.
 _signup = client.post(
     "/auth/signup",
-    json={"name": "Test Advisor", "email": f"test-{uuid.uuid4()}@example.com", "password": "testpassword123"},
+    json={
+        "name": "Test Advisor",
+        "email": f"test-{uuid.uuid4()}@example.com",
+        "password": "testpassword123",
+        "phone": "+44 7700 900000",
+    },
 )
 assert _signup.status_code == 201, _signup.text
 client.headers["Authorization"] = f"Bearer {_signup.json()['token']}"

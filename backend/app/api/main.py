@@ -5,10 +5,11 @@ Exposes the Workspace orchestrator (see app/engine/workspace.py) as a small
 set of REST endpoints an advisor's frontend (or Postman, or a script) can
 call directly:
 
-    POST /auth/signup                                    -- create an advisor account, get a session token
-    POST /auth/login                                      -- log in, get a session token
+    POST /auth/signup                                    -- create an advisor account (15-day trial), get a session token
+    POST /auth/login                                      -- log in, get a session token (403 if the trial has ended)
     POST /auth/logout                                      -- invalidate the current session token
     GET  /auth/me                                           -- current advisor + their workspace_ids
+    GET  /admin/leads?secret=...                            -- signup leads (name/email/phone), gated by ADMIN_SECRET
     POST /workspaces                                    -- upload a file, get a workspace_id back
     GET  /workspaces/{workspace_id}/clients              -- list client ids found in the file
     GET  /workspaces/{workspace_id}/portfolio            -- KPIs + variance for every client/period
@@ -51,11 +52,12 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.fpa_agent import AgentNotConfiguredError, ask
 from app.agents.narrative import generate_narrative
-from app.api.auth import _extract_token, get_current_advisor
+from app.api.auth import TRIAL_EXPIRED_DETAIL, _extract_token, get_current_advisor
 from app.db import repository
 from app.db.database import get_session, init_db
 from app.db.models import AdvisorAccount
@@ -135,6 +137,7 @@ class SignupRequest(BaseModel):
     name: str
     email: str
     password: str
+    phone: str
 
 
 class LoginRequest(BaseModel):
@@ -157,8 +160,12 @@ def signup(request: SignupRequest, db: Session = Depends(get_session)) -> dict:
         raise HTTPException(status_code=409, detail="An account with that email already exists")
     if len(request.password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    if not request.phone.strip():
+        raise HTTPException(status_code=400, detail="Phone number is required")
 
-    advisor = repository.create_advisor(db, name=request.name, email=request.email, password=request.password)
+    advisor = repository.create_advisor(
+        db, name=request.name, email=request.email, password=request.password, phone=request.phone
+    )
     token = repository.create_session(db, advisor.advisor_id)
     return {"token": token, "advisor": _advisor_payload(advisor)}
 
@@ -168,6 +175,8 @@ def login(request: LoginRequest, db: Session = Depends(get_session)) -> dict:
     advisor = repository.get_advisor_by_email(db, request.email)
     if advisor is None or not repository.verify_password(request.password, advisor.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
+    if repository.is_trial_expired(advisor):
+        raise HTTPException(status_code=403, detail=TRIAL_EXPIRED_DETAIL)
 
     token = repository.create_session(db, advisor.advisor_id)
     return {"token": token, "advisor": _advisor_payload(advisor)}
@@ -188,6 +197,31 @@ def me(
 ) -> dict:
     workspace_ids = repository.list_advisor_workspace_ids(db, advisor.advisor_id)
     return {"advisor": _advisor_payload(advisor), "workspace_ids": workspace_ids}
+
+
+@app.get("/admin/leads")
+def list_leads(secret: str = "", db: Session = Depends(get_session)) -> list[dict]:
+    """Signup leads (name/email/phone/trial status), for the founder to follow up with --
+    not a real admin panel, just a shared-secret-gated read endpoint (same lightweight
+    pattern as the old pre-auth DEMO_ACCESS_KEY). 404 (not 401/403) on a wrong/missing
+    secret so the route's existence isn't confirmed to a random prober, same convention
+    used for cross-advisor workspace access elsewhere in this file.
+    """
+    admin_secret = os.getenv("ADMIN_SECRET")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=404)
+
+    advisors = db.scalars(select(AdvisorAccount).order_by(AdvisorAccount.created_at.desc())).all()
+    return [
+        {
+            "name": a.name,
+            "email": a.email,
+            "phone": a.phone,
+            "created_at": a.created_at.isoformat(),
+            "trial_expires_at": a.trial_expires_at.isoformat() if a.trial_expires_at else None,
+        }
+        for a in advisors
+    ]
 
 
 @app.post("/workspaces", status_code=201)

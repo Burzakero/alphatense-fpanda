@@ -15,10 +15,10 @@ def _unique_email() -> str:
     return f"advisor-{uuid.uuid4()}@example.com"
 
 
-def _signup(email: str | None = None, password: str = "correcthorsebattery") -> dict:
+def _signup(email: str | None = None, password: str = "correcthorsebattery", phone: str = "+44 7700 900000") -> dict:
     response = client.post(
         "/auth/signup",
-        json={"name": "Acme Advisory", "email": email or _unique_email(), "password": password},
+        json={"name": "Acme Advisory", "email": email or _unique_email(), "password": password, "phone": phone},
     )
     assert response.status_code == 201, response.text
     return response.json()
@@ -34,15 +34,39 @@ def test_signup_returns_token_and_advisor():
 def test_signup_rejects_duplicate_email():
     email = _unique_email()
     _signup(email=email)
-    response = client.post("/auth/signup", json={"name": "Someone Else", "email": email, "password": "whatever123"})
+    response = client.post(
+        "/auth/signup",
+        json={"name": "Someone Else", "email": email, "password": "whatever123", "phone": "+44 7700 900001"},
+    )
     assert response.status_code == 409
 
 
 def test_signup_rejects_short_password():
     response = client.post(
-        "/auth/signup", json={"name": "Acme", "email": _unique_email(), "password": "short"}
+        "/auth/signup",
+        json={"name": "Acme", "email": _unique_email(), "password": "short", "phone": "+44 7700 900000"},
     )
     assert response.status_code == 400
+
+
+def test_signup_rejects_empty_phone():
+    response = client.post(
+        "/auth/signup",
+        json={"name": "Acme", "email": _unique_email(), "password": "correcthorsebattery", "phone": "   "},
+    )
+    assert response.status_code == 400
+
+
+def test_signup_starts_a_15_day_trial():
+    body = _signup()
+    db = SessionLocal()
+    try:
+        advisor = repository.get_advisor_by_id(db, body["advisor"]["advisor_id"])
+        assert advisor.phone == "+44 7700 900000"
+        # Rough window, not exact equality -- avoids flaking on request latency.
+        assert utcnow() + timedelta(days=14) < advisor.trial_expires_at < utcnow() + timedelta(days=16)
+    finally:
+        db.close()
 
 
 def test_login_with_correct_password():
@@ -106,6 +130,49 @@ def test_logout_invalidates_token():
 
     assert client.post("/auth/logout", headers=headers).status_code == 200
     assert client.get("/auth/me", headers=headers).status_code == 401
+
+
+def _expire_trial(advisor_id: str) -> None:
+    db = SessionLocal()
+    try:
+        advisor = repository.get_advisor_by_id(db, advisor_id)
+        advisor.trial_expires_at = utcnow() - timedelta(days=1)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_login_blocked_once_trial_has_expired():
+    email = _unique_email()
+    body = _signup(email=email, password="correcthorsebattery")
+    _expire_trial(body["advisor"]["advisor_id"])
+
+    response = client.post("/auth/login", json={"email": email, "password": "correcthorsebattery"})
+    assert response.status_code == 403
+
+
+def test_me_blocked_once_trial_has_expired_even_with_a_valid_token():
+    body = _signup()
+    _expire_trial(body["advisor"]["advisor_id"])
+
+    # The session token itself is still within its 30-day TTL -- this proves
+    # the trial check isn't only enforced at login, it's on every request.
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {body['token']}"})
+    assert response.status_code == 403
+
+
+def test_grandfathered_advisor_with_no_trial_expiry_is_never_blocked():
+    body = _signup()
+    db = SessionLocal()
+    try:
+        advisor = repository.get_advisor_by_id(db, body["advisor"]["advisor_id"])
+        advisor.trial_expires_at = None  # simulates an account that predates this migration
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {body['token']}"})
+    assert response.status_code == 200
 
 
 def test_advisor_cannot_access_another_advisors_workspace():

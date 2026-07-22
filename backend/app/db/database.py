@@ -36,6 +36,24 @@ def init_db() -> None:
     from app.db import models  # noqa: F401  (registers tables on Base.metadata)
 
     Base.metadata.create_all(bind=_engine)
+    _ensure_advisor_columns()
+
+
+def _ensure_advisor_columns() -> None:
+    """Add columns to an already-existing `advisors` table.
+
+    `Base.metadata.create_all()` only creates missing tables -- it never
+    alters one that already exists, and this app has real rows in
+    production. No Alembic for two columns; just an idempotent
+    `ALTER TABLE`, safe to run on every startup.
+    """
+    with _engine.connect() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(advisors)")}
+        if "phone" not in existing:
+            conn.exec_driver_sql("ALTER TABLE advisors ADD COLUMN phone VARCHAR")
+        if "trial_expires_at" not in existing:
+            conn.exec_driver_sql("ALTER TABLE advisors ADD COLUMN trial_expires_at DATETIME")
+        conn.commit()
 
 
 def get_session():

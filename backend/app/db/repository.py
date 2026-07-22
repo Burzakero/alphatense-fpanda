@@ -24,6 +24,7 @@ from app.engine.workspace import Workspace
 from app.models.domain import FinancialStatement, Invoice
 
 SESSION_TTL = timedelta(days=30)
+TRIAL_PERIOD = timedelta(days=15)
 
 
 def _hash_token(token: str) -> str:
@@ -38,17 +39,25 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
-def create_advisor(db: DbSession, *, name: str, email: str, password: str) -> AdvisorAccount:
+def create_advisor(db: DbSession, *, name: str, email: str, password: str, phone: str) -> AdvisorAccount:
     advisor = AdvisorAccount(
         advisor_id=str(uuid.uuid4()),
         name=name,
         email=email.strip().lower(),
         password_hash=hash_password(password),
+        phone=phone.strip(),
+        trial_expires_at=utcnow() + TRIAL_PERIOD,
     )
     db.add(advisor)
     db.commit()
     db.refresh(advisor)
     return advisor
+
+
+def is_trial_expired(advisor: AdvisorAccount) -> bool:
+    """Accounts created before the trial system shipped have trial_expires_at=None
+    (grandfathered in, never nullable-added rows aren't retroactively locked out)."""
+    return advisor.trial_expires_at is not None and advisor.trial_expires_at < utcnow()
 
 
 def get_advisor_by_email(db: DbSession, email: str) -> AdvisorAccount | None:
