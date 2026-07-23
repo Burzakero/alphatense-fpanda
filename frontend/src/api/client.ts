@@ -163,6 +163,19 @@ export function getClientCashFlow(
   return request(`/workspaces/${workspaceId}/clients/${clientId}/cash-flow?${params}`)
 }
 
+export interface Lead {
+  name: string
+  email: string
+  phone: string | null
+  created_at: string
+  trial_expires_at: string | null
+}
+
+export function getLeads(secret: string): Promise<Lead[]> {
+  const params = new URLSearchParams({ secret })
+  return request(`/admin/leads?${params}`)
+}
+
 export function chat(
   workspaceId: string,
   message: string,

@@ -77,9 +77,13 @@ backend/app/
 backend/sample_data/          # sample_financials.csv, sample_invoices.csv
 backend/tests/                 # pytest, un archivo por módulo de arriba
 frontend/src/
-  pages/                     # UploadPage, PortfolioPage, ClientDetailPage, ChatPage
+  pages/                     # LandingPage, LoginPage, SignupPage, TrialExpiredPage,
+                              # HomePage, UploadPage, PortfolioPage, ClientDetailPage,
+                              # ChatPage, AdminLeadsPage
   components/                # KpiCard, VarianceTable, ForecastChart, AgingSection,
-                              # CashFlowChart, InvoiceUpload, AccessGate
+                              # CashFlowChart, InvoiceUpload, RequireAuth
+                              # components/ui/ y components/landing/ para primitivas
+                              # compartidas y las secciones de la landing
   api/client.ts               # cliente HTTP tipado contra la API
 ```
 
@@ -88,7 +92,7 @@ frontend/src/
 ```bash
 cd backend
 pip install -r requirements.txt
-pytest -v                              # 120/120 pasando
+pytest -v                              # 195/195 pasando
 python run_demo.py                     # motor por consola con datos de ejemplo
 uvicorn app.api.main:app --reload      # API en http://127.0.0.1:8000 (Swagger en /docs)
 ```
@@ -107,52 +111,50 @@ Nota Windows: `uvicorn --reload` no siempre recarga limpio tras editar
 `app/api/main.py` — si los cambios no se reflejan, reiniciar el proceso
 manualmente.
 
-## Estado actual (2026-07-14)
+## Estado actual (2026-07-23)
 
-**Todo lo avanzable sin acción del usuario está construido y probado.**
-120/120 tests backend + typecheck de frontend limpio. Lo que queda
-pendiente depende enteramente de acciones externas del usuario:
+**Deployado en vivo y en uso real**: `alphatense.com` (Vercel, frontend) +
+`api.alphatense.com` (Railway, backend con SQLite sobre volumen
+persistente). Login real por asesoría (no un secreto compartido), gate de
+trial de 15 días con captura de leads (`/admin/leads`, con UI propia en
+`/admin/leads`), UI completamente en inglés, landing pública rediseñada,
+dashboard/portfolio/cliente reestructurados, PDF ejecutivo con branding +
+gráficos + EBITDA bridge + narrativa IA, export a Excel. **195/195 tests
+backend** + typecheck/lint de frontend limpio. Detalle sesión a sesión
+(2026-07-19 a 2026-07-23) en `PROGRESS.md` — no repetido acá porque decae
+rápido.
 
-1. **Deploy (Railway + Vercel)** — código 100% listo (`auth.py`, CORS
-   configurable, `Procfile`, `vercel.json`, `AccessGate.tsx`). Falta que
-   el usuario haga el signup manual en ambas plataformas (requiere login
-   interactivo por navegador, no completable desde este entorno). Checklist
-   completo en `PROGRESS.md`.
-2. **Agente conversacional** — construido y testeado (`fpa_agent.py`,
-   `POST /chat`, UI de chat), bloqueado por `ANTHROPIC_API_KEY` real.
+Lo que queda pendiente:
+
+1. **Validación con asesorías reales (5-10 en UK)** — paso de negocio, no
+   de código. Es la prioridad real ahora que el producto está deployado y
+   accesible por URL. Ver `Marketing/` (carpeta hermana del repo, no
+   versionada acá) para el plan de outreach.
+2. **Conector QuickBooks** — mapeo simulado completo (`FakeQuickBooksClient`),
+   mismo estado que tenía Xero antes de conectarse de verdad. Falta
+   `RealQuickBooksClient` con OAuth real (registro en Intuit developer).
 3. **Conector Xero — COMPLETO, verificado en vivo (2026-07-18)**.
-   `RealXeroClient` con OAuth2 real funcionando end-to-end contra la org
-   trial "Alphatense FP&A" (login, consentimiento, Invoices/Accounts/
-   Contacts/P&L Report todos reales). Nota: `GET /Journals` resultó
-   inaccesible bajo el modelo de scopes granulares de Xero (401 confirmado,
-   no hay scope que lo cubra) — el P&L se construye vía
-   `Reports/ProfitAndLoss` en su lugar (ver `PROGRESS.md` para el detalle).
-   Pendiente real, no de código: la org trial no tiene transacciones
-   cargadas, así que los números del P&L real quedan sin verificar hasta
-   validar con un cliente real.
-4. **Conector QuickBooks** — mismo estado que Xero (`FakeQuickBooksClient`,
-   completo y verificado). Falta `RealQuickBooksClient` con OAuth real
-   (registro en Intuit developer).
-5. **Validación con asesorías reales (5-10 en UK)** — paso de negocio, no
-   de código, una vez deployado.
-6. **Pulido visual del frontend** (diseño, responsive, loading states) —
-   deliberadamente pospuesto para el final del proyecto; toda la
-   funcionalidad de negocio ya está expuesta en la UI, solo falta el
-   trabajo visual.
-
-`git push` también quedó pendiente del usuario en su momento (requiere
-login interactivo por navegador con GitHub, no completable desde este
-entorno) — verificar `git log origin/main..HEAD` para ver si ya está al día.
+   `RealXeroClient` con OAuth2 real funcionando end-to-end. Nota: `GET
+   /Journals` resultó inaccesible bajo el modelo de scopes granulares de
+   Xero (401 confirmado, no hay scope que lo cubra) — el P&L se construye
+   vía `Reports/ProfitAndLoss` en su lugar (ver `PROGRESS.md` para el
+   detalle). Pendiente real, no de código: la org trial no tiene
+   transacciones cargadas, así que los números del P&L real quedan sin
+   verificar hasta validar con un cliente real.
+4. **Confirmar `ADMIN_SECRET` seteado en Railway** — sin esa env var en
+   producción, `/admin/leads` siempre devuelve 404.
+5. ~~Pulido visual del frontend~~ — **hecho**, ya no es un ítem pendiente
+   (landing, dashboard, PDF y export todos con trabajo visual real entre
+   2026-07-19 y 2026-07-22).
 
 ## Qué NO hacer sin confirmar con el usuario
 
-- No arrancar el `RealXeroClient`/`RealQuickBooksClient` sin confirmar que
-  las credenciales OAuth ya existen.
-- No invertir tiempo en pulido visual del frontend sin que lo pida
-  explícitamente — es una decisión de scope ya tomada.
-- No asumir que el deploy o la API key ya están resueltos — verificar el
-  estado real (¿existe `backend/.env` con la key? ¿hay una URL de Railway/
-  Vercel?) antes de dar por hecho que se resolvió.
+- No arrancar el `RealQuickBooksClient` sin confirmar que las credenciales
+  OAuth ya existen.
+- No asumir que el deploy, las API keys o las credenciales OAuth ya están
+  resueltas — verificar el estado real (¿existe `backend/.env` con la key?
+  ¿hay una URL de Railway/Vercel? ¿está `ADMIN_SECRET` seteado en Railway?)
+  antes de dar por hecho que se resolvió.
 
 ## Preferencias de trabajo confirmadas
 

@@ -342,33 +342,66 @@ feature. El usuario sigue teniendo pendiente el primer `git push` manual
 completar desde este entorno) — después de eso el push queda desbloqueado
 para el resto de la sesión.
 
+## Actualización 2026-07-19 a 2026-07-23: deploy en vivo, cuentas reales,
+## rediseño completo y trial gate
+
+Todo lo que sigue está en `main`, deployado y verificado en vivo en
+`alphatense.com` (Vercel + Railway), no solo probado localmente. Resumen
+denso porque abarca varias sesiones — el detalle línea a línea de cada
+feature vive en los mensajes de commit (`git log --oneline`), no repetido
+acá:
+
+- **2026-07-19**: deploy real (Vercel + Railway), dominio propio
+  `alphatense.com` conectado vía Cloudflare, `RealXeroClient` con OAuth2
+  verificado en vivo contra la org trial de Xero, rebrand con el logo real.
+- **2026-07-20**: login real por asesoría (antes era una sola
+  `DEMO_ACCESS_KEY` compartida) + persistencia en SQLite sobre un volumen
+  persistente de Railway (antes los workspaces vivían en un dict en
+  memoria y se perdían en cada restart — bug de pérdida de datos cerrado y
+  verificado con un restart real de producción), landing page de marketing
+  (antes la app caía directo al formulario de upload), traducción completa
+  de la UI a inglés (mercado objetivo es UK/US, se había construido todo
+  en español por default).
+- **2026-07-21**: dashboard autenticado `/home` (antes login llevaba
+  directo a un upload en blanco), fix de UX del botón de upload (drag-and-
+  drop con confirmación visual de archivo seleccionado), secciones de
+  confianza/cómo-funciona/CTA de demo en la landing.
+- **2026-07-22**: rediseño completo de la landing pública ("enterprise
+  financial-SaaS feel"), reestructuración de portfolio/cliente (agrupado
+  por cliente, hub con tabs en vez de una tabla plana), PDF ejecutivo con
+  branding + gráficos reales + EBITDA bridge + tendencia de 12 meses +
+  working capital + narrativa ejecutiva generada por IA (antes era texto
+  plano sin charts), export a Excel multi-hoja para Power BI, pulido de
+  logo/badges, **gate de trial de 15 días + captura de leads** (nombre,
+  email, teléfono al signup, con pantalla de "trial expirado" que deriva a
+  contacto por email).
+- **2026-07-23**: página de admin (`/admin/leads`, ver
+  `frontend/src/pages/AdminLeadsPage.tsx`) para ver los leads capturados
+  sin tener que pegar la URL del endpoint JSON a mano.
+
+**195/195 tests backend pasando**, typecheck/lint de frontend limpio.
+
 ## Qué falta (backlog, en el orden que fuimos priorizando)
 
-1. **Deploy real — falta que el usuario haga el signup en Railway y
-   Vercel** (código 100% listo, ver checklist arriba). Es lo que desbloquea
-   el paso de validación con asesorías reales.
-2. **Agente FP&A conversacional — bloqueado por `ANTHROPIC_API_KEY`**
-   (construido, testeado, y ahora con UI de chat lista). El usuario dijo
-   que la consigue más adelante; recordatorio programado para el lunes
-   2026-07-13 09:00.
-3. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
-   código. Una vez deployado, mandar la URL en vez de pedir clonar el repo.
-4. **Conector Xero — COMPLETO y verificado en vivo (2026-07-18)**. OAuth2
-   real + `RealXeroClient` construidos, y el hallazgo de que `/Journals` no
-   es accesible bajo scopes granulares ya está resuelto (P&L vía
-   `Reports/ProfitAndLoss`, ver sección de arriba). Pendiente real: la org
-   trial conectada no tiene transacciones cargadas, así que la
-   correctitud numérica del P&L real queda sin verificar hasta que haya un
-   cliente real con datos — la estructura del pipeline sí está probada
-   end-to-end.
-5. **Conector QuickBooks** — el mapeo de datos ya está construido y
+1. **Validar con asesorías reales (5-10 en UK)** — paso de negocio, no de
+   código; es el ítem que más importa ahora que todo lo demás está
+   deployado y accesible por URL. Ver `Marketing/` (fuera de este repo)
+   para el plan de outreach.
+2. **Conector QuickBooks** — el mapeo de datos ya está construido y
    probado contra un adaptador simulado (`FakeQuickBooksClient`), mismo
-   estado que Xero ahora. Solo falta el `RealQuickBooksClient` con el
-   OAuth real, bloqueado por que el usuario consiga la cuenta de developer
-   y registre la app en Intuit.
-6. **Pulido visual del frontend** (diseño, responsive, loading states,
-   etc.) — es lo único de "frontend" que sigue deliberadamente pospuesto
-   para el final; toda la funcionalidad ya está expuesta en la UI.
+   estado que tenía Xero antes de conectarse de verdad. Solo falta el
+   `RealQuickBooksClient` con el OAuth real, bloqueado por que el usuario
+   registre una app de developer en Intuit.
+3. **Confirmar `ADMIN_SECRET` seteado en Railway** — la página de admin de
+   leads (arriba) solo funciona si esa env var existe en producción; si no
+   está seteada, el endpoint devuelve 404 siempre.
+4. **Conector Xero** — completo y verificado en vivo (ver detalle arriba,
+   sección 2026-07-18/19). Pendiente real, no de código: la org trial
+   conectada no tiene transacciones cargadas, así que la correctitud
+   numérica del P&L real queda sin verificar hasta que haya un cliente
+   real con datos.
+5. ~~Pulido visual del frontend~~ — **hecho** (ver actualización
+   2026-07-19 a 2026-07-23 arriba). Ya no es un ítem pendiente.
 
 ## Cómo correr todo hoy
 

@@ -6,6 +6,7 @@ import { LandingPage } from './pages/LandingPage'
 import { LoginPage } from './pages/LoginPage'
 import { SignupPage } from './pages/SignupPage'
 import { TrialExpiredPage } from './pages/TrialExpiredPage'
+import { AdminLeadsPage } from './pages/AdminLeadsPage'
 import { HomePage } from './pages/HomePage'
 import { UploadPage } from './pages/UploadPage'
 import { PortfolioPage } from './pages/PortfolioPage'
@@ -30,6 +31,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/trial-expired" element={<TrialExpiredPage />} />
+      <Route path="/admin/leads" element={<AdminLeadsPage />} />
       <Route
         path="/home"
         element={
