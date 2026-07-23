@@ -31,9 +31,60 @@ from app.models.domain import AccountCategory, FinancialStatement, LineItem, Sce
 
 _REQUIRED_COLUMNS = {"period", "scenario", "account", "category", "amount"}
 
+# Common accounting synonyms for the fixed AccountCategory vocabulary. Real
+# advisory P&Ls label categories inconsistently (e.g. "Cost of Sales" instead
+# of "cogs") -- this lets those files load without the advisor hand-editing
+# the source spreadsheet, while anything not on this list still gets a clear
+# error naming the accepted values.
+_CATEGORY_SYNONYMS: dict[str, AccountCategory] = {
+    "sales": AccountCategory.REVENUE,
+    "income": AccountCategory.REVENUE,
+    "turnover": AccountCategory.REVENUE,
+    "net sales": AccountCategory.REVENUE,
+    "total revenue": AccountCategory.REVENUE,
+    "cost of sales": AccountCategory.COGS,
+    "cost of goods sold": AccountCategory.COGS,
+    "cost of revenue": AccountCategory.COGS,
+    "direct costs": AccountCategory.COGS,
+    "direct cost": AccountCategory.COGS,
+    "operating expenses": AccountCategory.OPEX,
+    "operating expense": AccountCategory.OPEX,
+    "expenses": AccountCategory.OPEX,
+    "expense": AccountCategory.OPEX,
+    "overheads": AccountCategory.OPEX,
+    "overhead": AccountCategory.OPEX,
+    "sg&a": AccountCategory.OPEX,
+    "administrative expenses": AccountCategory.OPEX,
+    "other income": AccountCategory.OTHER_INCOME,
+    "non-operating income": AccountCategory.OTHER_INCOME,
+    "miscellaneous income": AccountCategory.OTHER_INCOME,
+    "other expenses": AccountCategory.OTHER_EXPENSE,
+    "other expense": AccountCategory.OTHER_EXPENSE,
+    "non-operating expense": AccountCategory.OTHER_EXPENSE,
+    "non-operating expenses": AccountCategory.OTHER_EXPENSE,
+    "interest expense": AccountCategory.OTHER_EXPENSE,
+    "taxes": AccountCategory.TAX,
+    "income tax": AccountCategory.TAX,
+    "corporation tax": AccountCategory.TAX,
+    "corporate tax": AccountCategory.TAX,
+}
+
 
 class IngestionError(ValueError):
     """Raised when an uploaded file doesn't match the expected schema."""
+
+
+def _resolve_category(raw: str) -> AccountCategory:
+    normalized = raw.strip().lower()
+    try:
+        return AccountCategory(normalized)
+    except ValueError:
+        pass
+    mapped = _CATEGORY_SYNONYMS.get(normalized)
+    if mapped is not None:
+        return mapped
+    valid = ", ".join(c.value for c in AccountCategory)
+    raise ValueError(f"invalid category '{raw}' (expected one of: {valid})")
 
 
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -98,12 +149,9 @@ def parse_line_items(df: pd.DataFrame) -> list[LineItem]:
             ) from exc
 
         try:
-            category = AccountCategory(str(row["category"]).strip().lower())
+            category = _resolve_category(str(row["category"]))
         except ValueError as exc:
-            valid = ", ".join(c.value for c in AccountCategory)
-            raise IngestionError(
-                f"Row {row_num}: invalid category '{row['category']}' (expected one of: {valid})"
-            ) from exc
+            raise IngestionError(f"Row {row_num}: {exc}") from exc
 
         try:
             amount = float(row["amount"])

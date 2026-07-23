@@ -55,6 +55,24 @@ def test_non_numeric_amount_raises():
         parse_line_items(df)
 
 
+def test_category_synonym_is_mapped():
+    df = pd.DataFrame(
+        [{"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "COGS",
+          "category": "Cost of Sales", "amount": 100}]
+    )
+    items = parse_line_items(df)
+    assert items[0].category == AccountCategory.COGS
+
+
+def test_unrecognized_category_still_raises_with_row_number():
+    df = pd.DataFrame(
+        [{"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "Sales",
+          "category": "not-a-real-category", "amount": 100}]
+    )
+    with pytest.raises(IngestionError, match="Row 2"):
+        parse_line_items(df)
+
+
 def test_parsed_line_item_types():
     df = load_dataframe(SAMPLE_CSV)
     items = parse_line_items(df)
