@@ -73,6 +73,43 @@ def test_unrecognized_category_still_raises_with_row_number():
         parse_line_items(df)
 
 
+def test_ambiguous_category_resolved_via_account_name():
+    df = pd.DataFrame(
+        [
+            {"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "Depreciation",
+             "category": "Non Operating", "amount": -941.53},
+            {"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "Interest",
+             "category": "Non Operating", "amount": -372.71},
+            {"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "Interest Income",
+             "category": "Other", "amount": 150},
+        ]
+    )
+    items = parse_line_items(df)
+    assert items[0].category == AccountCategory.OTHER_EXPENSE
+    assert items[0].amount == 941.53  # negative cost normalized to positive
+    assert items[1].category == AccountCategory.OTHER_EXPENSE
+    assert items[2].category == AccountCategory.OTHER_INCOME
+    assert items[2].amount == 150  # income is untouched, not a cost category
+
+
+def test_ambiguous_category_without_account_hint_still_raises():
+    df = pd.DataFrame(
+        [{"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "Miscellaneous",
+          "category": "Non Operating", "amount": 100}]
+    )
+    with pytest.raises(IngestionError, match="ambiguous"):
+        parse_line_items(df)
+
+
+def test_negative_cost_amount_is_normalized_to_positive():
+    df = pd.DataFrame(
+        [{"client_id": "c1", "period": "2026-01", "scenario": "actual", "account": "COGS",
+          "category": "cogs", "amount": -20063.13}]
+    )
+    items = parse_line_items(df)
+    assert items[0].amount == 20063.13
+
+
 def test_parsed_line_item_types():
     df = load_dataframe(SAMPLE_CSV)
     items = parse_line_items(df)

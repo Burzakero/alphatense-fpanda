@@ -13,7 +13,12 @@ Expected input schema (columns, case-insensitive, order doesn't matter):
 - account:     the GL account / line description, e.g. "Marketing"
 - category:    one of revenue / cogs / opex / other_income / other_expense / tax
 - amount:      numeric. Expenses should be entered as positive numbers
-               (the engine treats cogs/opex/other_expense/tax as costs).
+               (the engine treats cogs/opex/other_expense/tax as costs). Some
+               accounting exports instead give costs as negative numbers
+               (debit/credit convention) -- to tolerate that without silently
+               inflating profit, cost-side categories (cogs/opex/other_expense/
+               tax) have their magnitude taken automatically, so either sign
+               convention produces the same, correct KPIs.
 
 This is intentionally file-format agnostic: the same normalization runs
 whether the source was a multi-client CSV export or an Excel workbook, and
@@ -69,12 +74,31 @@ _CATEGORY_SYNONYMS: dict[str, AccountCategory] = {
     "corporate tax": AccountCategory.TAX,
 }
 
+# Categories that say "this is a cost, but not which kind" -- resolved by
+# looking for unambiguous keywords in the account name instead of guessing
+# from the category label alone. Checked in order: income hints first (more
+# specific phrases), then expense hints, so a bare "Interest" account falls
+# through to the (far more common in SME P&Ls) expense reading.
+_AMBIGUOUS_CATEGORY_TERMS = {"non operating", "non-operating", "other"}
+_ACCOUNT_INCOME_HINTS = ("interest income", "dividend income", "gain")
+_ACCOUNT_EXPENSE_HINTS = (
+    "depreciation", "amortization", "amortisation", "interest",
+    "loss", "write-off", "write off", "impairment", "charge",
+)
+
+_COST_CATEGORIES = {
+    AccountCategory.COGS,
+    AccountCategory.OPEX,
+    AccountCategory.OTHER_EXPENSE,
+    AccountCategory.TAX,
+}
+
 
 class IngestionError(ValueError):
     """Raised when an uploaded file doesn't match the expected schema."""
 
 
-def _resolve_category(raw: str) -> AccountCategory:
+def _resolve_category(raw: str, account: str) -> AccountCategory:
     normalized = raw.strip().lower()
     try:
         return AccountCategory(normalized)
@@ -83,6 +107,16 @@ def _resolve_category(raw: str) -> AccountCategory:
     mapped = _CATEGORY_SYNONYMS.get(normalized)
     if mapped is not None:
         return mapped
+    if normalized in _AMBIGUOUS_CATEGORY_TERMS:
+        account_lower = account.strip().lower()
+        if any(hint in account_lower for hint in _ACCOUNT_INCOME_HINTS):
+            return AccountCategory.OTHER_INCOME
+        if any(hint in account_lower for hint in _ACCOUNT_EXPENSE_HINTS):
+            return AccountCategory.OTHER_EXPENSE
+        raise ValueError(
+            f"invalid category '{raw}' -- ambiguous for account '{account}'; "
+            "use 'other_income' or 'other_expense' instead"
+        )
     valid = ", ".join(c.value for c in AccountCategory)
     raise ValueError(f"invalid category '{raw}' (expected one of: {valid})")
 
@@ -148,8 +182,10 @@ def parse_line_items(df: pd.DataFrame) -> list[LineItem]:
                 f"Row {row_num}: invalid scenario '{row['scenario']}' (expected one of: {valid})"
             ) from exc
 
+        account = str(row["account"]).strip()
+
         try:
-            category = _resolve_category(str(row["category"]))
+            category = _resolve_category(str(row["category"]), account)
         except ValueError as exc:
             raise IngestionError(f"Row {row_num}: {exc}") from exc
 
@@ -158,12 +194,15 @@ def parse_line_items(df: pd.DataFrame) -> list[LineItem]:
         except (TypeError, ValueError) as exc:
             raise IngestionError(f"Row {row_num}: amount '{row['amount']}' is not numeric") from exc
 
+        if category in _COST_CATEGORIES:
+            amount = abs(amount)
+
         items.append(
             LineItem(
                 client_id=str(row["client_id"]).strip(),
                 period=str(row["period"]).strip(),
                 scenario=scenario,
-                account=str(row["account"]).strip(),
+                account=account,
                 category=category,
                 amount=amount,
             )
